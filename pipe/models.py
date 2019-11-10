@@ -22,6 +22,7 @@ from copy import deepcopy
 from joblib import Parallel, delayed
 import multiprocessing
 from kinect_spec import *
+from dataset import *
 import cv2
 from numpy import linalg as LA
 
@@ -29,11 +30,13 @@ from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
 tf.logging.set_verbosity(tf.logging.INFO)
-from kinect_init import *
 
 PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
+
+
+# tof_cam = kinect_real_tf()
 
 
 def leaky_relu(x):
@@ -64,6 +67,7 @@ def samples_visualizaiton(x, offsets, h_selected_pos, w_selected_pos, batch_size
     """
     offsets_size = tf.shape(offsets)
     h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], N, 2]
+    # print(h_w_reshape_size)
 
     offsets = tf.reshape(offsets, h_w_reshape_size)
     coords_h, coords_w = tf.split(offsets, [1, 1], axis=-1)
@@ -197,6 +201,10 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     ih0 = h0 + h_pos
     iw0 = w0 + w_pos
 
+    # print('*************************************')
+    # print(h0)
+    # print(h_pos)
+
     ih1 = h1 + h_pos
     iw1 = w1 + w_pos
 
@@ -205,34 +213,14 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
 
     mask_inside_sum = tf.cast(0 <= ih0, dtype=tf.float32) + tf.cast(ih1 <= h_max_idx, dtype=tf.float32) + \
                       tf.cast(0 <= iw0, dtype=tf.float32) + tf.cast(iw1 <= w_max_idx, dtype=tf.float32) + \
-                      tf.cast(tf.abs(h1) <= deformable_range, dtype=tf.float32) + tf.cast(tf.abs(w1) <= deformable_range, dtype=tf.float32)
+                      tf.cast(tf.abs(h1) <= deformable_range, dtype=tf.float32) + tf.cast(
+        tf.abs(w1) <= deformable_range, dtype=tf.float32)
 
     mask_outside = mask_inside_sum < 6.0
     mask_inside = mask_inside_sum > 5.0
 
     mask_outside = tf.cast(mask_outside, dtype=tf.float32)
     mask_inside = tf.cast(mask_inside, dtype=tf.float32)
-    #
-    # tensor_original_ih = [-1, -1, -1, 0, 0, 0, 1, 1, 1]
-    # tensor_original_ih = tf.convert_to_tensor(tensor_original_ih)
-    # tensor_original_ih = tf.reshape(tensor_original_ih, [1, 1, 1, N])
-    # tensor_original_ih = tf.tile(tensor_original_ih, multiples=[batch_size, h_max_idx - 2, w_max_idx - 2, 1])
-    # tensor_original_ih = tf.cast(tensor_original_ih, tf.float32)
-    # tensor_original_ih = tf.pad(tensor_original_ih, paddings=[[0, 0], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
-    # tensor_original_ih = tensor_original_ih + h_pos
-    #
-    # tensor_original_iw = [-1, 0, 1, -1, 0, 1, -1, 0, 1]
-    # tensor_original_iw = tf.convert_to_tensor(tensor_original_iw)
-    # tensor_original_iw = tf.reshape(tensor_original_iw, [1, 1, 1, N])
-    # tensor_original_iw = tf.tile(tensor_original_iw, multiples=[batch_size, h_max_idx - 2, w_max_idx - 2, 1])
-    # tensor_original_iw = tf.cast(tensor_original_iw, tf.float32)
-    # tensor_original_iw = tf.pad(tensor_original_iw, paddings=[[0, 0], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
-    # tensor_original_iw = tensor_original_iw + w_pos
-
-    # ih0 = ih0 * mask_inside + tensor_original_ih * mask_outside
-    # iw0 = iw0 * mask_inside + tensor_original_ih * mask_outside
-    # ih1 = ih1 * mask_inside + tensor_original_iw * mask_outside
-    # iw1 = iw1 * mask_inside + tensor_original_iw * mask_outside
 
     ih0 = ih0 * mask_inside
     iw0 = iw0 * mask_inside
@@ -298,15 +286,15 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
 
 
 def kpn(x, flg, regular):
-    x_shape=[None, 424, 512, 9]
-    y_shape=[None, 424, 512, 1*1*9*9+9]
+    x_shape = [None, 424, 512, 9]
+    y_shape = [None, 424, 512, 1 * 1 * 9 * 9 + 9]
     pref = 'kpn_'
 
     # whether to train flag
     train_ae = flg
 
     # define initializer for the network
-    keys = ['conv','upsample']
+    keys = ['conv', 'upsample']
     keys_avoid = ['OptimizeLoss']
     inits = []
 
@@ -322,84 +310,85 @@ def kpn(x, flg, regular):
                 if key in name:
                     flag_init = False
             if flag_init:
-                name_f = name.replace('/','_')
+                name_f = name.replace('/', '_')
                 num = str(init_net.get_variable_value(name).tolist())
                 # self define the initializer function
                 from tensorflow.python.framework import dtypes
                 from tensorflow.python.ops.init_ops import Initializer
-                exec("class "+name_f+"(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array("+num+"),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
+                exec(
+                    "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
                 inits.append(name_f)
 
     # autoencoder
-    n_filters=[\
-        64,\
-        64,64,64,
-        128,128,128,
-        256,256,256,
+    n_filters = [ \
+        64, \
+        64, 64, 64,
+        128, 128, 128,
+        256, 256, 256,
         512,
     ]
-    filter_sizes=[\
+    filter_sizes = [ \
         None,
-        7,5,5,
-        5,3,3,
-        3,3,3,
+        7, 5, 5,
+        5, 3, 3,
+        3, 3, 3,
         3,
     ]
-    pool_sizes=[\
+    pool_sizes = [ \
         None,
-        2,1,1,
-        2,1,1,
-        2,1,1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
         2,
     ]
-    pool_strides=[\
+    pool_strides = [ \
         None,
-        2,1,1,
-        2,1,1,
-        2,1,1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
         2,
     ]
-    skips = [\
+    skips = [ \
         False,
-        False,False,True,
-        False,False,True,
-        False,False,True,
+        False, False, True,
+        False, False, True,
+        False, False, True,
         False,
     ]
-    filter_sizes_skips = [\
+    filter_sizes_skips = [ \
         3,
-        3,3,3,
-        3,3,3,
-        3,3,3,
+        3, 3, 3,
+        3, 3, 3,
+        3, 3, 3,
         3,
     ]
 
     n_output = y_shape[-1]
-    n_filters_mix = [n_output,n_output,n_output,n_output]
-    filter_sizes_mix=[3,3,3,3]
+    n_filters_mix = [n_output, n_output, n_output, n_output]
+    filter_sizes_mix = [3, 3, 3, 3]
 
     # initializer
     min_init = -1
     max_init = 1
 
     # change space
-    ae_inputs = tf.identity(x,name='ae_inputs')
+    ae_inputs = tf.identity(x, name='ae_inputs')
 
     # prepare input
     current_input = tf.identity(ae_inputs, name="input")
     # convolutional layers: encoder
     conv = []
     pool = [current_input]
-    for i in range(1,len(n_filters)):
-        name = pref+"conv_"+str(i)
+    for i in range(1, len(n_filters)):
+        name = pref + "conv_" + str(i)
 
         # define the initializer
-        if name+'_bias' in inits:
-            bias_init = eval(name+'_bias()')
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
         else:
             bias_init = tf.zeros_initializer()
-        if name+'_kernel' in inits:
-            kernel_init = eval(name+'_kernel()')
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
         else:
             kernel_init = None
 
@@ -415,18 +404,18 @@ def kpn(x, flg, regular):
             bias_initializer=bias_init,
             name=name,
         )
-        current_input = tf.layers.batch_normalization(current_input, training=train_ae, name=name+'BN')
+        current_input = tf.layers.batch_normalization(current_input, training=train_ae, name=name + 'BN')
         current_input = leaky_relu(current_input)
         conv.append(current_input)
         if pool_sizes[i] == 1 and pool_strides[i] == 1:
             pool.append(conv[-1])
         else:
-            pool.append(\
-                tf.layers.max_pooling2d(\
+            pool.append( \
+                tf.layers.max_pooling2d( \
                     inputs=conv[-1],
-                    pool_size=[pool_sizes[i],pool_sizes[i]],
+                    pool_size=[pool_sizes[i], pool_sizes[i]],
                     strides=pool_strides[i],
-                    name=pref+"pool_"+str(i)
+                    name=pref + "pool_" + str(i)
                 )
             )
         current_input = pool[-1]
@@ -435,23 +424,23 @@ def kpn(x, flg, regular):
     # upsampling
     upsamp = []
     current_input = pool[-1]
-    for i in range(len(n_filters)-1,0,-1):
-        name = pref+"upsample_"+str(i-1)
+    for i in range(len(n_filters) - 1, 0, -1):
+        name = pref + "upsample_" + str(i - 1)
 
         # define the initializer
-        if name+'_bias' in inits:
-            bias_init = eval(name+'_bias()')
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
         else:
             bias_init = tf.zeros_initializer()
-        if name+'_kernel' in inits:
-            kernel_init = eval(name+'_kernel()')
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
         else:
             kernel_init = None
 
         # upsampling
-        current_input = tf.layers.conv2d_transpose(\
+        current_input = tf.layers.conv2d_transpose( \
             inputs=current_input,
-            filters=n_filters[i-1],
+            filters=n_filters[i - 1],
             kernel_size=[filter_sizes[i], filter_sizes[i]],
             strides=(pool_strides[i], pool_strides[i]),
             padding="same",
@@ -462,31 +451,30 @@ def kpn(x, flg, regular):
             name=name
         )
 
-
         current_input = tf.layers.batch_normalization(current_input, training=train_ae, name=name + 'BN')
         current_input = leaky_relu(current_input)
 
         # skip connection
-        if skips[i-1] == True:
-            name = pref+"skip_conv_"+str(i-1)
+        if skips[i - 1] == True:
+            name = pref + "skip_conv_" + str(i - 1)
 
             # define the initializer
-            if name+'_bias' in inits:
-                bias_init = eval(name+'_bias()')
+            if name + '_bias' in inits:
+                bias_init = eval(name + '_bias()')
             else:
                 bias_init = tf.zeros_initializer()
-            if name+'_kernel' in inits:
-                kernel_init = eval(name+'_kernel()')
+            if name + '_kernel' in inits:
+                kernel_init = eval(name + '_kernel()')
             else:
                 kernel_init = None
 
             tmp = [current_input]
-            tmp.append(pool[i-1])
+            tmp.append(pool[i - 1])
             current_input = tf.concat(tmp, -1)
-            current_input = tf.layers.conv2d(\
+            current_input = tf.layers.conv2d( \
                 inputs=current_input,
-                filters=n_filters[i-1]*2,
-                kernel_size=[filter_sizes_skips[i-1], filter_sizes_skips[i-1]],
+                filters=n_filters[i - 1] * 2,
+                kernel_size=[filter_sizes_skips[i - 1], filter_sizes_skips[i - 1]],
                 padding="same",
                 # activation=leaky_relu,
                 trainable=train_ae,
@@ -500,28 +488,28 @@ def kpn(x, flg, regular):
 
     # mix
     mix = []
-    for i in range(1,len(n_filters_mix)):
-        name = pref+"mix_conv_"+str(i)
+    for i in range(1, len(n_filters_mix)):
+        name = pref + "mix_conv_" + str(i)
 
         # define the initializer
-        if name+'_bias' in inits:
-            bias_init = eval(name+'_bias()')
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
         else:
             bias_init = tf.zeros_initializer()
-        if name+'_kernel' in inits:
-            kernel_init = eval(name+'_kernel()')
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
         else:
             kernel_init = None
 
-        if i == (len(n_filters_mix)-1):
-            activation=None
+        if i == (len(n_filters_mix) - 1):
+            activation = None
         else:
-            activation=leaky_relu
+            activation = leaky_relu
 
         # convolution
 
-        mix.append(\
-            tf.layers.conv2d(\
+        mix.append( \
+            tf.layers.conv2d( \
                 inputs=current_input,
                 filters=n_filters_mix[i],
                 kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
@@ -535,8 +523,9 @@ def kpn(x, flg, regular):
         )
         current_input = mix[-1]
 
-    ae_outputs = tf.identity(current_input,name="ae_output")
+    ae_outputs = tf.identity(current_input, name="ae_output")
     return ae_outputs
+
 
 def bottleneck(x, flg, regular, inits, i):
     pref = 'bottleneck_'
@@ -822,6 +811,235 @@ def deformable_subnet(x, flg, regular):
     offsets = tf.identity(offsets, name="offsets_output")
     return features, offsets
 
+
+def deformable_half_subnet(x, flg, regular):
+    """Build a U-Net architecture"""
+
+    """ Args: x is the input, 4-D tensor (BxHxWxC)
+              flg represent weather add the BN
+              regular represent the regularizer number 
+
+
+        Return: output is 4-D Tensor (BxHxWxC)
+    """
+
+    pref = 'deformable_half_subnet_'
+
+    # whether to train flag
+    train_ae = flg
+
+    # define initializer for the network
+    keys = ['conv', 'upsample']
+    keys_avoid = ['OptimizeLoss']
+    inits = []
+
+    init_net = None
+    if init_net != None:
+        for name in init_net.get_variable_names():
+            # select certain variables
+            flag_init = False
+            for key in keys:
+                if key in name:
+                    flag_init = True
+            for key in keys_avoid:
+                if key in name:
+                    flag_init = False
+            if flag_init:
+                name_f = name.replace('/', '_')
+                num = str(init_net.get_variable_value(name).tolist())
+                # self define the initializer function
+                from tensorflow.python.framework import dtypes
+                from tensorflow.python.ops.init_ops import Initializer
+                exec(
+                    "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
+                inits.append(name_f)
+
+    # autoencoder
+    n_filters = [
+        32, 32, 32,
+        32, 32, 32,
+        64, 64, 64,
+        64, 64, 64,
+        128, 128, 128,
+        128, 128, 128,
+        256,
+        256,
+    ]
+    filter_sizes = [
+        5, 5, 5,
+        5, 5, 5,
+        5, 5, 5,
+        5, 5, 5,
+        5, 5, 5,
+        5, 5, 5,
+        5,
+        5,
+    ]
+    pool_sizes = [ \
+        1, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2,
+        1,
+    ]
+    pool_strides = [
+        1, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2, 1, 1,
+        2,
+        1,
+    ]
+    skips = [ \
+        False, False, False,
+        True, False, False,
+        True, False, False,
+        True, False, False,
+        True, False, False,
+        True, False, False,
+        True,
+        False,
+    ]
+
+    n_filters_mix = [32, 32, 32, 18]
+    filter_sizes_mix = [5, 5, 5, 5]
+
+    # change space
+    ae_inputs = tf.identity(x, name='ae_inputs')
+
+    # prepare input
+    current_input = tf.identity(ae_inputs, name="input")
+    # convolutional layers: encoder
+    conv = []
+    pool = [current_input]
+    for i in range(1, len(n_filters)):
+        name = pref + "conv_" + str(i)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+
+        # convolution
+        conv.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters[i],
+                kernel_size=[filter_sizes[i], filter_sizes[i]],
+                padding="same",
+                activation=relu,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        if pool_sizes[i] == 1 and pool_strides[i] == 1:
+            pool.append(conv[-1])
+        else:
+            pool.append( \
+                tf.layers.max_pooling2d( \
+                    inputs=conv[-1],
+                    pool_size=[pool_sizes[i], pool_sizes[i]],
+                    strides=pool_strides[i],
+                    name=pref + "pool_" + str(i)
+                )
+            )
+        current_input = pool[-1]
+
+    # convolutional layer: decoder
+    # upsampling
+    upsamp = []
+    current_input = pool[-1]
+    for i in range(len(n_filters) - 1, 0, -1):
+        name = pref + "upsample_" + str(i - 1)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+
+        # upsampling
+        if skips[i - 1] == False and skips[i] == True:
+            filters = n_filters[i - 1] * 2
+        else:
+            filters = n_filters[i - 1]
+        current_input = tf.layers.conv2d_transpose( \
+            inputs=current_input,
+            filters=filters,
+            kernel_size=[filter_sizes[i], filter_sizes[i]],
+            strides=(pool_strides[i], pool_strides[i]),
+            padding="same",
+            activation=relu,
+            trainable=train_ae,
+            kernel_initializer=kernel_init,
+            bias_initializer=bias_init,
+            name=name
+        )
+        # current_input = tf.layers.batch_normalization(
+        #     inputs=current_input,
+        #     training=train_ae,
+        #     name=pref + "upsamp_BN_" + str(i))
+        # skip connection
+        if skips[i - 1] == True:
+            # current_input = current_input + pool[i - 1]
+            current_input = tf.concat([current_input, pool[i - 1]], axis=-1)
+        upsamp.append(current_input)
+
+    mix = []
+    for i in range(1, len(n_filters_mix)):
+        name = pref + "mix_conv_" + str(i)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+
+        if i == (len(n_filters_mix) - 1):
+            activation = None
+        else:
+            activation = relu
+
+        # convolution
+        mix.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters_mix[i],
+                kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
+                padding="same",
+                activation=activation,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        current_input = mix[-1]
+    features = tf.identity(upsamp[-1], name='ae_output')
+    offsets = tf.identity(current_input, name="offsets_output")
+    return features, offsets
+
+
 def doformable_subnet_raw(x, flg, regular):
     """Build a U-Net architecture"""
 
@@ -1060,12 +1278,14 @@ def doformable_subnet_raw(x, flg, regular):
     features = tf.identity(upsamp[-1], name='ae_output')
     offsets = tf.identity(offsets, name="offsets_output")
     return features, offsets
+
+
 def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
     pref = 'weight_subnet_'
 
     # whether to train flag
     train_ae = flg
-
+    current_input = inputs
     # define initializer for the network
     keys = ['conv', 'upsample']
     keys_avoid = ['OptimizeLoss']
@@ -1092,49 +1312,46 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
                     "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
                 inits.append(name_f)
 
-    # change space
-    # inputs = tf.concat([x, features, samples], axis=-1)
-    wt_inputs = tf.identity(inputs, name='wt_inputs')
-    # prepare input
-    current_input = tf.identity(wt_inputs, name="current_wt_input")
-    ### weight_conv
-    name = pref + "wt_conv_"
-    # define the initializer
-    if name + '_bias' in inits:
-        bias_init = eval(name + '_bias()')
-    else:
-        bias_init = tf.zeros_initializer()
-    if name + '_kernel' in inits:
-        kernel_init = eval(name + '_kernel()')
-    else:
-        kernel_init = None
-    current_input = tf.layers.conv2d( \
-        inputs=current_input,
-        filters=64,
-        kernel_size=[3, 3],
-        strides=(1, 1),
-        padding="same",
-        activation=leaky_relu,
-        trainable=train_ae,
-        kernel_initializer=kernel_init,
-        bias_initializer=bias_init,
-        name=name + str(0),
-    )
+    n_filters_mix = [9, 9, 9, 9]
+    filter_sizes_mix = [5, 5, 5, 5]
+    mix = []
+    for i in range(1, len(n_filters_mix)):
+        name = pref + "_conv_" + str(i)
 
-    current_input = tf.layers.conv2d( \
-        inputs=current_input,
-        filters=9,
-        kernel_size=[3, 3],
-        strides=(1, 1),
-        padding="same",
-        # activation=relu,
-        trainable=train_ae,
-        kernel_initializer=kernel_init,
-        bias_initializer=bias_init,
-        name=name + str(1),
-    )
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+
+        if i == (len(n_filters_mix) - 1):
+            activation = sigmoid
+        else:
+            activation = relu
+
+        # convolution
+        mix.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters_mix[i],
+                kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
+                padding="same",
+                activation=activation,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        current_input = mix[-1]
+
     weights = tf.identity(current_input, name='wt_output')
     return weights
+
 
 def weight_subnet_raw(inputs, flg, regular):  ## x (B,H,W,9), features:(B,H,W,64), samples:(B,H,W,81)
     pref = 'weight_subnet_'
@@ -1212,21 +1429,44 @@ def weight_subnet_raw(inputs, flg, regular):  ## x (B,H,W,9), features:(B,H,W,64
     weights = tf.identity(current_input, name='wt_output')
     return weights
 
+
 def dof_subnet(inputs, flg, regular):
-    y_shape = [None, 424, 512, 1 * 1 * 3 * 9]
     pref = 'dof_subnet_'
     # whether to train flag
     train_ae = flg
+    current_input = inputs
     # define initializer for the network
-    current_input = None
+    keys = ['conv', 'upsample']
+    keys_avoid = ['OptimizeLoss']
     inits = []
-    n_output = y_shape[-1]
-    n_filters_mix = [n_output, n_output, n_output, n_output]
-    filter_sizes_mix = [3, 3, 3, 3]
+
+    init_net = None
+    if init_net != None:
+        for name in init_net.get_variable_names():
+            # select certain variables
+            flag_init = False
+            for key in keys:
+                if key in name:
+                    flag_init = True
+            for key in keys_avoid:
+                if key in name:
+                    flag_init = False
+            if flag_init:
+                name_f = name.replace('/', '_')
+                num = str(init_net.get_variable_value(name).tolist())
+                # self define the initializer function
+                from tensorflow.python.framework import dtypes
+                from tensorflow.python.ops.init_ops import Initializer
+                exec(
+                    "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
+                inits.append(name_f)
+
+    n_filters_mix = [9, 9, 9, 9]
+    filter_sizes_mix = [1, 1, 1, 1]
     mix = []
     for i in range(1, len(n_filters_mix)):
         name = pref + "_conv_" + str(i)
-        activation = relu
+
         # define the initializer
         if name + '_bias' in inits:
             bias_init = eval(name + '_bias()')
@@ -1237,10 +1477,15 @@ def dof_subnet(inputs, flg, regular):
         else:
             kernel_init = None
 
+        if i == (len(n_filters_mix) - 1):
+            activation = None
+        else:
+            activation = relu
+
         # convolution
         mix.append( \
             tf.layers.conv2d( \
-                inputs=inputs,
+                inputs=current_input,
                 filters=n_filters_mix[i],
                 kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
                 padding="same",
@@ -1252,17 +1497,16 @@ def dof_subnet(inputs, flg, regular):
             )
         )
         current_input = mix[-1]
-    dof_output = current_input
-    dof_output = tf.identity(dof_output, name="dof_output")
+
+    dof_output = tf.identity(current_input, name='wt_output')
     return dof_output
 
-def dof_computer(inputs, flg, regular):
-    return inputs
 
 def coherent_demodulation(inputs, phi, theta):
     return inputs
 
-def unet(x, flg, regular, batch_size, deformable_range):
+
+def unet(x, flg, regular, batch_size, deformable_range, z_multiplier):
     """Build a U-Net architecture"""
 
     """ Args: x is the input, 4-D tensor (BxHxWxC)
@@ -1471,7 +1715,8 @@ def unet(x, flg, regular, batch_size, deformable_range):
     output = tf.identity(current_input, name="ae_output")
     return output
 
-def kpn_raw(x, flg, regular, batch_size, deformable_range):
+
+def kpn_raw(x, flg, regular, batch_size, deformable_range, z_multiplier):
     output = kpn(x, flg, regular)
     biass = output[:, :, :, -9::]
     kers = output[:, :, :, 0:-9]
@@ -1487,7 +1732,8 @@ def kpn_raw(x, flg, regular, batch_size, deformable_range):
 
     return x_new
 
-def deformable_kpn(x, flg, regular, batch_size, range):
+
+def deformable_kpn(x, flg, regular, batch_size, range, z_multiplier):
     N = 9
     batch_size = batch_size
     features, offsets = deformable_subnet(x, flg, regular)
@@ -1507,7 +1753,30 @@ def deformable_kpn(x, flg, regular, batch_size, range):
 
     return depth_output, offsets
 
-def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
+
+def deformable_kpn_half(x, flg, regular, batch_size, range, z_multiplier):
+    N = 9
+    features, offsets = deformable_half_subnet(x, flg, regular)
+
+    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, range)
+
+    # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
+
+    # inputs = tf.concat([x, features, samples], axis=-1)
+
+    samples = dof_subnet(samples, flg, regular)
+
+    weights = weight_subnet(features, flg, regular)
+    weights = weights - tf.reduce_mean(weights)
+    depth_output = weights * samples
+    depth_output = tf.reduce_sum(depth_output, axis=-1, keep_dims=True)
+    depth_output = x + depth_output
+    # print(depth_output)
+
+    return depth_output, offsets
+
+
+def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range, z_multiplier):
     """
     :param x:
     :param flg:
@@ -1528,13 +1797,12 @@ def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
     features, offsets = doformable_subnet_raw(x, flg, regular)
     offsets = tf.reshape(offsets, shape=[batch_size, h_max, w_max, 3, 2 * N])
 
-
     for i in range(3):
-        offsets_temp = offsets[:,:,:,i,:]
-        print(offsets_temp)
+        offsets_temp = offsets[:, :, :, i, :]
+        # print(offsets_temp)
         for j in range(3):
-
-            samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x_list[i*3 + j], offsets_temp, N, batch_size, deformable_range)
+            samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x_list[i * 3 + j], offsets_temp, N, batch_size,
+                                                                         deformable_range)
             samples_set.append(samples)
             coords_h_pos_set.append(coords_h_pos)
             coords_w_pos_set.append(coords_w_pos)
@@ -1550,16 +1818,17 @@ def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
 NETWORK_NAME = {
     'deformable_kpn': deformable_kpn,
     'deformable_kpn_raw': deformable_kpn_raw,
+    'deformable_kpn_half': deformable_kpn_half,
     'unet': unet,
-    'kpn_raw': kpn_raw
+    'kpn_raw': kpn_raw,
 }
 
 ALL_NETWORKS = dict(NETWORK_NAME)
 
 
-def get_network(name, x, flg, regular, batch_size, range):
+def get_network(name, x, flg, regular, batch_size, range, z_multiplier):
     if name not in NETWORK_NAME.keys():
         print('Unrecognized network, pick one among: {}'.format(ALL_NETWORKS.keys()))
         raise Exception('Unknown network selected')
     selected_network = ALL_NETWORKS[name]
-    return selected_network(x, flg, regular, batch_size, range)
+    return selected_network(x, flg, regular, batch_size, range, z_multiplier)

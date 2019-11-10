@@ -39,6 +39,35 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
+
+def colorize_img(value, vmin=None, vmax=None, cmap=None):
+    """
+    A utility function for TensorFlow that maps a grayscale image to a matplotlib colormap for use with TensorBoard image summaries.
+    By default it will normalize the input value to the range 0..1 before mapping to a grayscale colormap.
+    Arguments:
+      - value: 4D Tensor of shape [batch_size,height, width,1]
+      - vmin: the minimum value of the range used for normalization. (Default: value minimum)
+      - vmax: the maximum value of the range used for normalization. (Default: value maximum)
+      - cmap: a valid cmap named for use with matplotlib's 'get_cmap'.(Default: 'gray')
+
+    Returns a 3D tensor of shape [batch_size,height, width,3].
+    """
+
+    # normalize
+    vmin = tf.reduce_min(value) if vmin is None else vmin
+    vmax = tf.reduce_max(value) if vmax is None else vmax
+    value = (value - vmin) / (vmax - vmin)  # vmin..vmax
+
+    # quantize
+    indices = tf.to_int32(tf.round(value[:, :, :, 0] * 255))
+
+    # gather
+    color_map = matplotlib.cm.get_cmap(cmap if cmap is not None else 'gray')
+    colors = color_map(np.arange(256))[:, :3]
+    colors = tf.constant(colors, dtype=tf.float32)
+    value = tf.gather(colors, indices)
+    return value
+
 def preprocessing(features, labels):
     msk = kinect_mask_tensor()
     meas = features['full']
@@ -53,6 +82,7 @@ def preprocessing(features, labels):
     ideal_p = ideal[20:-20, :, :]
     gt = labels['gt']
     gt = tf.image.resize_images(gt, [meas.shape[0], meas.shape[1]])
+    gt = tof_cam.dist_to_depth(gt)
     gt_p = gt[20:-20, :, :]
     features['full'] = meas_p
     labels['ideal'] = ideal_p
@@ -117,3 +147,15 @@ def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch
 def imgs_input_fn_inverse(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     batch_features, batch_labels = imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32)
     return batch_labels, batch_features
+
+def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w_pos):
+    N = samples.shape.as_list()[-1]
+    XX_s, YY_s, ZZ_s = map2mesh_samples(samples, tof_cam.cam, batch_size, z_multiplier, yy_coords=coords_h_pos, xx_coords=coords_w_pos)
+    XX, YY, ZZ = map2mesh(dist, tof_cam.cam, batch_size, z_multiplier)
+    XX = tf.tile(XX, multiples=[1,1,1,N])
+    YY = tf.tile(YY, multiples=[1, 1, 1, N])
+    ZZ = tf.tile(ZZ, multiples=[1, 1, 1, N])
+    dist = tf.tile(dist, multiples=[1, 1, 1, N])
+    dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
+    dof_samples = dof_samp_cur + samples + dist
+    return dof_samples
