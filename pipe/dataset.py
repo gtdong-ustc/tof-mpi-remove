@@ -1,34 +1,13 @@
 import sys
 
 sys.path.insert(0, '../sim/')
-import numpy as np
 import tensorflow as tf
-import os, json, glob
-import imageio
 import matplotlib
-import math
-# matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from utils import *
 from tof_class import *
-import pdb
-import pickle
-import time
-import scipy.misc
-from scipy import sparse
-import scipy.interpolate
-from copy import deepcopy
-from joblib import Parallel, delayed
-import multiprocessing
 from kinect_spec import *
-import cv2
-from numpy import linalg as LA
+i
 
-from tensorflow.contrib import learn
-from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
-
-from kinect_option import kinect_mask_tensor
+from kinect_pipeline import kinect_mask_tensor
 
 tf.logging.set_verbosity(tf.logging.INFO)
 from kinect_init import *
@@ -38,7 +17,6 @@ tof_cam = kinect_real_tf()
 PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
-
 
 def colorize_img(value, vmin=None, vmax=None, cmap=None):
     """
@@ -159,3 +137,131 @@ def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w
     dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
     dof_samples = dof_samp_cur + samples + dist
     return dof_samples
+
+def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
+    """
+
+    :param input:
+    :param offsets:
+    :param N:
+    :param batch_size:
+    :return:
+    """
+    # input_size = tf.shape(input)
+    h_max_idx = input.shape.as_list()[1]
+    w_max_idx = input.shape.as_list()[2]
+    offsets_size = tf.shape(offsets)
+    """
+    xiugai h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], N, 2]
+    """
+    h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], 2, N]
+
+    offsets = tf.reshape(offsets, h_w_reshape_size)
+    coords_h, coords_w = tf.split(offsets, [1, 1], axis=3)
+    coords_h = tf.squeeze(coords_h, [3])
+    coords_w = tf.squeeze(coords_w, [3])
+    coords_h = tf.cast(coords_h, dtype=tf.float32)
+    coords_w = tf.cast(coords_w, dtype=tf.float32)
+
+    h0 = tf.floor(coords_h)
+    h1 = h0 + 1
+    w0 = tf.floor(coords_w)
+    w1 = w0 + 1
+
+    ## this may be have some questions
+    w_pos, h_pos = tf.meshgrid(list(range(w_max_idx)), list(range(h_max_idx)))
+
+    w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
+    h_pos = tf.expand_dims(tf.expand_dims(h_pos, 0), -1)
+    w_pos = tf.tile(w_pos, multiples=[batch_size, 1, 1, N])
+    h_pos = tf.tile(h_pos, multiples=[batch_size, 1, 1, N])
+    w_pos = tf.cast(w_pos, dtype=tf.float32)
+    h_pos = tf.cast(h_pos, dtype=tf.float32)
+
+    ih0 = h0 + h_pos
+    iw0 = w0 + w_pos
+
+    # print('*************************************')
+    # print(h0)
+    # print(h_pos)
+
+    ih1 = h1 + h_pos
+    iw1 = w1 + w_pos
+
+    coords_h_pos = coords_h + h_pos
+    coords_w_pos = coords_w + w_pos
+
+    mask_inside_sum = tf.cast(0 <= ih0, dtype=tf.float32) + tf.cast(ih1 <= h_max_idx, dtype=tf.float32) + \
+                      tf.cast(0 <= iw0, dtype=tf.float32) + tf.cast(iw1 <= w_max_idx, dtype=tf.float32) + \
+                      tf.cast(tf.abs(h1) <= deformable_range, dtype=tf.float32) + tf.cast(
+        tf.abs(w1) <= deformable_range, dtype=tf.float32)
+
+    mask_outside = mask_inside_sum < 6.0
+    mask_inside = mask_inside_sum > 5.0
+
+    mask_outside = tf.cast(mask_outside, dtype=tf.float32)
+    mask_inside = tf.cast(mask_inside, dtype=tf.float32)
+
+    ih0 = ih0 * mask_inside
+    iw0 = iw0 * mask_inside
+    ih1 = ih1 * mask_inside
+    iw1 = iw1 * mask_inside
+
+    # coords_h_pos = coords_h_pos * mask_inside + tensor_original_iw * mask_outside
+    # coords_w_pos = coords_w_pos * mask_inside + tensor_original_iw * mask_outside
+
+    tensor_batch = list(range(batch_size))
+    tensor_batch = tf.convert_to_tensor(tensor_batch)
+    tensor_batch = tf.reshape(tensor_batch, [batch_size, 1, 1, 1])
+    tensor_batch = tf.tile(tensor_batch, multiples=[1, h_max_idx, w_max_idx, N])
+    tensor_batch = tf.cast(tensor_batch, dtype=tf.float32)
+
+    tensor_channel = tf.zeros(shape=[N], dtype=tf.float32)
+    tensor_channel = tf.reshape(tensor_channel, [1, 1, 1, N])
+    tensor_channel = tf.tile(tensor_channel, multiples=[batch_size, h_max_idx, w_max_idx, 1])
+    tensor_channel = tf.cast(tensor_channel, dtype=tf.float32)
+
+    idx00 = tf.stack([tensor_batch, ih0, iw0, tensor_channel], axis=-1)
+    idx01 = tf.stack([tensor_batch, ih0, iw1, tensor_channel], axis=-1)
+    idx10 = tf.stack([tensor_batch, ih1, iw0, tensor_channel], axis=-1)
+    idx11 = tf.stack([tensor_batch, ih1, iw1, tensor_channel], axis=-1)
+
+    idx00 = tf.reshape(idx00, [-1, 4])
+    idx01 = tf.reshape(idx01, [-1, 4])
+    idx10 = tf.reshape(idx10, [-1, 4])
+    idx11 = tf.reshape(idx11, [-1, 4])
+
+    im00 = tf.gather_nd(input, tf.cast(idx00, dtype=tf.int32))
+    im01 = tf.gather_nd(input, tf.cast(idx01, dtype=tf.int32))
+    im10 = tf.gather_nd(input, tf.cast(idx10, dtype=tf.int32))
+    im11 = tf.gather_nd(input, tf.cast(idx11, dtype=tf.int32))
+
+    im00 = tf.reshape(im00, [batch_size, h_max_idx, w_max_idx, N])
+    im01 = tf.reshape(im01, [batch_size, h_max_idx, w_max_idx, N])
+    im10 = tf.reshape(im10, [batch_size, h_max_idx, w_max_idx, N])
+    im11 = tf.reshape(im11, [batch_size, h_max_idx, w_max_idx, N])
+
+    im00 = tf.cast(im00, dtype=tf.float32)
+    im01 = tf.cast(im01, dtype=tf.float32)
+    im10 = tf.cast(im10, dtype=tf.float32)
+    im11 = tf.cast(im11, dtype=tf.float32)
+
+    wt_w0 = w1 - coords_w
+    wt_w1 = coords_w - w0
+    wt_h0 = h1 - coords_h
+    wt_h1 = coords_h - h0
+
+    w00 = wt_h0 * wt_w0
+    w01 = wt_h0 * wt_w1
+    w10 = wt_h1 * wt_w0
+    w11 = wt_h1 * wt_w1
+
+    output = tf.add_n([
+        w00 * im00, w01 * im01,
+        w10 * im10, w11 * im11
+    ])
+
+    output = output * mask_inside
+    return output, coords_h_pos, coords_w_pos
+
+
