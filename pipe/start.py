@@ -164,7 +164,7 @@ def tof_net_func(features, labels, mode, params):
         eval_metric_ops=metrics,
     )
 
-def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, learning_rate, batch_size, traing_steps, evaluate_steps, deformable_range, selected_position, model_name, checkpoint_steps, loss_mask,gpu_Number):
+def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, learning_rate, batch_size, traing_steps, evaluate_steps, deformable_range, model_name, checkpoint_steps, loss_mask,gpu_Number):
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
@@ -179,7 +179,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
                                      params={'learning_rate': learning_rate, 'batch_size': batch_size, 'model_dir': model_dir,
                                              'loss_fn': loss_fn, 'deformable_range': deformable_range,
-                                             'selected_position': selected_position, 'model_name': model_name, 'loss_mask': loss_mask})
+                                             'model_name': model_name, 'loss_mask': loss_mask})
 
 
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: imgs_input_fn(filenames=train_data_path, height=424, width=512,
@@ -190,7 +190,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
                                       steps=None, throttle_secs=evaluate_steps)
     tf.estimator.train_and_evaluate(tof_net, train_spec, eval_spec)
 
-def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range, loss_fn, selected_position, model_name, loss_mask,gpu_Number):
+def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range, loss_fn, model_name, loss_mask,gpu_Number):
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
@@ -201,11 +201,11 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
                 'deformable_range': deformable_range, 'loss_fn':loss_fn,
-                'selected_position': selected_position, 'model_name': model_name, 'loss_mask': loss_mask})
+                'model_name': model_name, 'loss_mask': loss_mask})
     tof_net.evaluate(input_fn=lambda: imgs_input_fn(filenames=evaluate_data_path, height=424, width=512,
         shuffle=False, repeat_count=1, batch_size=batch_size), checkpoint_path=model_dir + '/model.ckpt-' + checkpoint_steps)
 
-def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range, loss_fn, selected_position, model_name, loss_mask,gpu_Number):
+def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range, loss_fn, model_name, loss_mask,gpu_Number):
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
@@ -216,7 +216,7 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
                 'deformable_range': deformable_range, 'loss_fn':loss_fn,
-                'selected_position': selected_position, 'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':True})
+                'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':True})
     result = list(tof_net.predict(input_fn=lambda: imgs_input_fn(filenames=evaluate_data_path, height=424, width=512,
                 shuffle=False, repeat_count=1, batch_size=batch_size), checkpoint_path=model_dir + '/model.ckpt-' + checkpoint_steps))
 
@@ -278,15 +278,15 @@ if __name__ == '__main__':
     if args.flagMode == 'train':
         dataset_training(train_data_path=train_data_path, evaluate_data_path=evaluate_data_path, loss_fn=args.lossType,
                          model_dir=model_dir, learning_rate=args.lr, batch_size=args.batchSize, traing_steps=args.steps,
-                         evaluate_steps=args.evalSteps, deformable_range = args.deformableRange, selected_position = args.selectedPosition,
-                         model_name=args.modelName,checkpoint_steps=args.checkpointSteps, loss_mask = args.lossMask, gpu_Number = args.gpuNumber
+                         evaluate_steps=args.evalSteps, deformable_range = args.deformableRange, model_name=args.modelName,
+                         checkpoint_steps=args.checkpointSteps, loss_mask = args.lossMask, gpu_Number = args.gpuNumber
                          )
     elif args.flagMode == 'eval':
         dataset_testing(evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,
                         batch_size=args.batchSize, checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange,
-                        selected_position=args.selectedPosition, model_name = args.modelName, loss_mask = args.lossMask, gpu_Number = args.gpuNumber)
+                        model_name = args.modelName, loss_mask = args.lossMask, gpu_Number = args.gpuNumber)
 
     else:
         dataset_output(result_path=output_dir,evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,
                         batch_size=args.batchSize, checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange,
-                        selected_position=args.selectedPosition, model_name = args.modelName, loss_mask = args.lossMask, gpu_Number = args.gpuNumber)
+                        model_name = args.modelName, loss_mask = args.lossMask, gpu_Number = args.gpuNumber)
