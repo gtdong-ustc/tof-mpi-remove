@@ -254,7 +254,7 @@ def kpn_subnet(x, flg, regular):
     ae_outputs = tf.identity(current_input, name="ae_output")
     return ae_outputs
 
-def kpn(x, flg, regular):
+def kpn(x, flg, regular, batch_size, deformable_range):
     # inputs 9 channel raw measurements, float32
     # outputs 9 channel raw measurements, float32
     x_shape = [-1, 384, 512, 9]

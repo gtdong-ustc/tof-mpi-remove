@@ -323,7 +323,7 @@ def weight_subnet_raw(inputs, flg, regular):  ## x (B,H,W,9), features:(B,H,W,64
     weights = tf.identity(current_input, name='wt_output')
     return weights
 
-def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range, z_multiplier):
+def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
     """
     :param x:
     :param flg:
