@@ -5,6 +5,8 @@
 import numpy as np
 import pickle
 
+root_dir = '/userhome/dataset/original/FLAT'
+
 prms = {
     'ab_multiplier' : 0.66666687,
     'ab_multiplier_per_frq'    : np.array([1.32258105, 1.00000000, 1.61290300]),
@@ -41,25 +43,25 @@ prms = {
     'max_depth'                    :    6000.0,
 }
 
-with open('../params/kinect/z_table','rb') as f:
+with open(root_dir + '/params/kinect/z_table','rb') as f:
     z_table = np.fromfile(f,dtype=np.float32)
     z_table = np.reshape(z_table, (424, 512))
 
-with open('../params/kinect/x_table','rb') as f:
+with open(root_dir + '/params/kinect/x_table','rb') as f:
     x_table = np.fromfile(f,dtype=np.float32)
     x_table = np.reshape(x_table, (424, 512))
 
-with open('../params/kinect/trig_table0','rb') as f:
+with open(root_dir + '/params/kinect/trig_table0','rb') as f:
     trig_table0 = np.fromfile(f,dtype=np.float32)
     trig_table0 = np.reshape(trig_table0, (424,512,6))
 
-with open('../params/kinect/trig_table1','rb') as f:
+with open(root_dir + '/params/kinect/trig_table1','rb') as f:
     trig_table1 = np.fromfile(f,dtype=np.float32)
     trig_table1 = np.reshape(trig_table1, (424,512,6))
 
-with open('../params/kinect/trig_table2','rb') as f:
+with open(root_dir + '/params/kinect/trig_table2','rb') as f:
     trig_table2 = np.fromfile(f,dtype=np.float32)
     trig_table2 = np.reshape(trig_table2, (424,512,6))
 
-with open('../params/kinect/kinect_baseline_correct.pickle','rb') as f:
+with open(root_dir + '/params/kinect/kinect_baseline_correct.pickle','rb') as f:
     base_cor = pickle.load(f)
