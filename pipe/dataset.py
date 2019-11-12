@@ -153,10 +153,11 @@ def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=
         # decode the raw bytes so it becomes a tensor with type
 
         amps = tf.decode_raw(amps_raw, tf.float32)
-        amps = tf.amps(amps, tf.float32)
+        amps = tf.cast(amps, tf.float32)
         amps = tf.reshape(amps, amps_shape)
 
         depth = tf.decode_raw(depth_raw, tf.float32)
+        depth = tf.cast(depth, tf.float32)
         depth = tf.reshape(depth, depth_shape)
 
         depth_ref = tf.decode_raw(depth_ref_raw, tf.float32)
@@ -320,8 +321,9 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     return output, coords_h_pos, coords_w_pos
 
 ALL_INPUT_FN = {
-    'imgs_input_fn': imgs_input_fn,
-    'imgs_input_fn_deeptof': imgs_input_fn_deeptof
+    'FLAT_reflection_s5': imgs_input_fn,
+    'FLAT_full_s5': imgs_input_fn,
+    'deeptof_reflection': imgs_input_fn_deeptof
 }
 
 def get_input_fn(training_set, filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
