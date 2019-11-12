@@ -124,7 +124,10 @@ def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch
 def imgs_input_fn_inverse(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     batch_features, batch_labels = imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32)
     return batch_labels, batch_features
-
+"""
+###
+This function has been temporarily deleted
+###
 def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w_pos):
     N = samples.shape.as_list()[-1]
     XX_s, YY_s, ZZ_s = map2mesh_samples(samples, tof_cam.cam, batch_size, z_multiplier, yy_coords=coords_h_pos, xx_coords=coords_w_pos)
@@ -136,6 +139,7 @@ def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w
     dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
     dof_samples = dof_samp_cur + samples + dist
     return dof_samples
+"""
 
 def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     """
@@ -150,9 +154,7 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     h_max_idx = input.shape.as_list()[1]
     w_max_idx = input.shape.as_list()[2]
     offsets_size = tf.shape(offsets)
-    """
-    xiugai h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], N, 2]
-    """
+
     h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], 2, N]
 
     offsets = tf.reshape(offsets, h_w_reshape_size)
@@ -167,7 +169,6 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     w0 = tf.floor(coords_w)
     w1 = w0 + 1
 
-    ## this may be have some questions
     w_pos, h_pos = tf.meshgrid(list(range(w_max_idx)), list(range(h_max_idx)))
 
     w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
@@ -179,10 +180,6 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
 
     ih0 = h0 + h_pos
     iw0 = w0 + w_pos
-
-    # print('*************************************')
-    # print(h0)
-    # print(h_pos)
 
     ih1 = h1 + h_pos
     iw1 = w1 + w_pos
@@ -205,9 +202,6 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     iw0 = iw0 * mask_inside
     ih1 = ih1 * mask_inside
     iw1 = iw1 * mask_inside
-
-    # coords_h_pos = coords_h_pos * mask_inside + tensor_original_iw * mask_outside
-    # coords_w_pos = coords_w_pos * mask_inside + tensor_original_iw * mask_outside
 
     tensor_batch = list(range(batch_size))
     tensor_batch = tf.convert_to_tensor(tensor_batch)

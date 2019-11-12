@@ -1718,7 +1718,7 @@ class kinect_real_tf:
 		# this function converts the distance to camera center to depth w.r.t.
 		# the camera plane
 		cam = self.cam
-		xx,yy = np.meshgrid(np.arange(dist.shape[1]),np.arange(dist.shape[0]))
+		xx,yy = np.meshgrid(np.arange(dist.shape.as_list()[1]),np.arange(dist.shape.as_list()[0]))
 		xc = (dist.shape[1]-1)/2
 		yc = (dist.shape[0]-1)/2
 		coeff = np.tan(cam['fov_x']/2/180*np.pi)
