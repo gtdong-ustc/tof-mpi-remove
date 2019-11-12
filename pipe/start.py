@@ -275,13 +275,13 @@ if __name__ == '__main__':
     evaluate_data_path = os.path.join(dataset_path, args.trainingSet + '_eval.tfrecords')
 
 
-    if args.flagEval == 'train':
+    if args.flagMode == 'train':
         dataset_training(train_data_path=train_data_path, evaluate_data_path=evaluate_data_path, loss_fn=args.lossType,
                          model_dir=model_dir, learning_rate=args.lr, batch_size=args.batchSize, traing_steps=args.steps,
                          evaluate_steps=args.evalSteps, deformable_range = args.deformableRange, selected_position = args.selectedPosition,
                          model_name=args.modelName,checkpoint_steps=args.checkpointSteps, loss_mask = args.lossMask, gpu_Number = args.gpuNumber
                          )
-    elif args.flagEval == 'eval':
+    elif args.flagMode == 'eval':
         dataset_testing(evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,
                         batch_size=args.batchSize, checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange,
                         selected_position=args.selectedPosition, model_name = args.modelName, loss_mask = args.lossMask, gpu_Number = args.gpuNumber)
