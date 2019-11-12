@@ -23,7 +23,7 @@ def deformable_subnet(x, flg, regular):
         Return: output is 4-D Tensor (BxHxWxC)
     """
 
-    pref = 'deformable_half_subnet_'
+    pref = 'deformable_subnet_'
 
     # whether to train flag
     train_ae = flg
@@ -105,15 +105,12 @@ def deformable_subnet(x, flg, regular):
         True,
         False,
     ]
-
-    n_filters_mix = [32, 32, 32, 18]
-    filter_sizes_mix = [5, 5, 5, 5]
-
     # change space
     ae_inputs = tf.identity(x, name='ae_inputs')
 
     # prepare input
     current_input = tf.identity(ae_inputs, name="input")
+    ####################################################################################################################
     # convolutional layers: encoder
     conv = []
     pool = [current_input]
@@ -156,7 +153,7 @@ def deformable_subnet(x, flg, regular):
                 )
             )
         current_input = pool[-1]
-
+    ####################################################################################################################
     # convolutional layer: decoder
     # upsampling
     upsamp = []
@@ -200,10 +197,13 @@ def deformable_subnet(x, flg, regular):
             # current_input = current_input + pool[i - 1]
             current_input = tf.concat([current_input, pool[i - 1]], axis=-1)
         upsamp.append(current_input)
-
-    mix = []
+    ####################################################################################################################
+    # through some 1x1 conv layers gain offsets
+    n_filters_mix = [32, 32, 32, 18]
+    filter_sizes_mix = [5, 5, 5, 5]
+    gain_offset = []
     for i in range(1, len(n_filters_mix)):
-        name = pref + "mix_conv_" + str(i)
+        name = pref + "offset_conv_" + str(i)
 
         # define the initializer
         if name + '_bias' in inits:
@@ -214,14 +214,13 @@ def deformable_subnet(x, flg, regular):
             kernel_init = eval(name + '_kernel()')
         else:
             kernel_init = None
-
         if i == (len(n_filters_mix) - 1):
             activation = None
         else:
             activation = relu
 
         # convolution
-        mix.append( \
+        gain_offset.append( \
             tf.layers.conv2d( \
                 inputs=current_input,
                 filters=n_filters_mix[i],
@@ -234,10 +233,47 @@ def deformable_subnet(x, flg, regular):
                 name=name,
             )
         )
-        current_input = mix[-1]
+        current_input = gain_offset[-1]
+    ####################################################################################################################
+    # through some conv layers to gain depth feature
+    n_filters_depth_feature = [16, 16, 16, 1]
+    filter_sizes_depth_feature = [5, 5, 5, 5]
+    gain_depth_feature = []
+    current_input = tf.identity(ae_inputs, name="input")
+    for i in range(1, len(n_filters_depth_feature)):
+        name = pref + "depth _conv_" + str(i)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+         activation = relu
+
+        # convolution
+        gain_depth_feature.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters_depth_feature[i],
+                kernel_size=[filter_sizes_depth_feature[i], filter_sizes_depth_feature[i]],
+                padding="same",
+                activation=activation,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        current_input = gain_depth_feature[-1]
+    ####################################################################################################################
     features = tf.identity(upsamp[-1], name='ae_output')
-    offsets = tf.identity(current_input, name="offsets_output")
-    return features, offsets
+    offsets = tf.identity(gain_offset[-1], name="offsets_output")
+    depth_feature = tf.identity(gain_depth_feature[-1], name="depth_feature_output")
+    return features, offsets, depth_feature
 
 def dof_subnet(inputs, flg, regular):
     pref = 'dof_subnet_'
@@ -274,7 +310,7 @@ def dof_subnet(inputs, flg, regular):
     filter_sizes_mix = [1, 1, 1, 1]
     mix = []
     for i in range(1, len(n_filters_mix)):
-        name = pref + "_conv_" + str(i)
+        name = pref + "conv_" + str(i)
 
         # define the initializer
         if name + '_bias' in inits:
@@ -346,7 +382,7 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
     filter_sizes_mix = [5, 5, 5, 5]
     mix = []
     for i in range(1, len(n_filters_mix)):
-        name = pref + "_conv_" + str(i)
+        name = pref + "conv_" + str(i)
 
         # define the initializer
         if name + '_bias' in inits:
@@ -385,15 +421,16 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
 
 def deformable_kpn(x, flg, regular, batch_size, deformable_range):
     N = 9
-    features, offsets = deformable_subnet(x, flg, regular)
+    features, offsets, depth_feature = deformable_subnet(x, flg, regular)
 
-    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
+    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(depth_feature, offsets, N, batch_size, deformable_range)
 
     # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
 
     samples = dof_subnet(samples, flg, regular)
 
-    inputs = tf.concat([x, features, samples], axis=-1)
+    # inputs = tf.concat([x, features, samples], axis=-1)  ### concat x, samples and features, the performance degrade
+    inputs = features
 
     weights = weight_subnet(inputs, flg, regular)
     weights = weights - tf.reduce_mean(weights)
