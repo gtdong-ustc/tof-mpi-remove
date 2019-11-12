@@ -5,7 +5,6 @@ import tensorflow as tf
 import matplotlib
 from tof_class import *
 from kinect_spec import *
-i
 
 from kinect_pipeline import kinect_mask_tensor
 
