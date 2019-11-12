@@ -258,7 +258,6 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for training of a Deformable KPN Network')
     parser.add_argument("-t", "--trainingSet", help='the name to the list file with training set', default = 'FLAT_reflection_s5', type=str)
-
     parser.add_argument("-m", "--modelName", help="name of the denoise model to be used", default="deformable_kpn")
     parser.add_argument("-l", "--lr", help="initial value for learning rate", default=1e-5, type=float)
     parser.add_argument("-i", "--imageShape", help='two int for image shape [height,width]', nargs='+', type=int, default=[424, 512])
