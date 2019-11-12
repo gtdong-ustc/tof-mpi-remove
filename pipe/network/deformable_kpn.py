@@ -1,8 +1,9 @@
 import sys
 
-sys.path.insert(0, '../sim/')
+sys.path.inset(0, '../module/')
 import tensorflow as tf
 from dataset import *
+from activation import *
 
 tf.logging.set_verbosity(tf.logging.INFO)
 

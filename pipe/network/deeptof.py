@@ -10,7 +10,7 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
-def deeptof(x, flg, regular, batch_size, deformable_range, z_multiplier):
+def deeptof(x, flg, regular, batch_size, range):
     """Build a U-Net architecture"""
 
     """ Args: x is the input, 4-D tensor (BxHxWxC)
