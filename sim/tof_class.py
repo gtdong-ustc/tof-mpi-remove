@@ -11,7 +11,9 @@ from utils import *
 import scipy.misc
 import scipy.interpolate
 from matplotlib import pyplot as plt
+
 root_dir = '/userhome/dataset/original/FLAT'
+
 class cam_baseline:
 	# baseline tof camera, uses square wave for emission and modulation
 	# other cameras can inherit from this class
@@ -1718,29 +1720,62 @@ class kinect_real_tf:
 		# this function converts the distance to camera center to depth w.r.t.
 		# the camera plane
 		cam = self.cam
-		xx,yy = np.meshgrid(np.arange(dist.shape.as_list()[1]),np.arange(dist.shape.as_list()[0]))
-		xc = (dist.shape[1]-1)/2
-		yc = (dist.shape[0]-1)/2
-		coeff = np.tan(cam['fov_x']/2/180*np.pi)
-		xx = (xx - xc)/dist.shape[1]*cam['dimx']/((cam['dimx']-1)/2) * coeff
-		yy = (yy - yc)/dist.shape[0]*cam['dimy']/((cam['dimx']-1)/2) * coeff
-		z_multiplier = 1/np.sqrt(xx**2+yy**2+1)
+		dimx = cam['dimx']
+		dimy = cam['dimy']
+		dimx = tf.convert_to_tensor(dimx, dtype=tf.float32)
+		dimy = tf.convert_to_tensor(dimy, dtype=tf.float32)
+		dist_x_shape = dist.shape.as_list()[1]
+		dist_y_shape = dist.shape.as_list()[0]
+		xx,yy = tf.meshgrid(list(range(dist_x_shape)),list(range(dist_y_shape)))
+		xc = (dist_x_shape-1)/2
+		xc = tf.convert_to_tensor(xc, dtype=tf.float32)
+		yc = (dist_y_shape-1)/2
+		yc = tf.convert_to_tensor(yc, dtype=tf.float32)
+		xx = tf.cast(xx, dtype=tf.float32)
+		yy = tf.cast(yy, dtype=tf.float32)
+		coeff = tf.tan(cam['fov_x']/2/180*np.pi)
+		coeff = tf.cast(coeff, dtype=tf.float32)
+		dist_x_shape = tf.convert_to_tensor(dist_x_shape, dtype=tf.float32)
+		dist_y_shape = tf.convert_to_tensor(dist_y_shape, dtype=tf.float32)
+
+		xx = (xx - xc)/dist_x_shape*dimx/((dimx-1)/2) * coeff
+		yy = (yy - yc)/dist_y_shape*dimy/((dimy-1)/2) * coeff
+		z_multiplier = 1/tf.sqrt(xx**2+yy**2+1)
+		z_multiplier = tf.expand_dims(z_multiplier, axis=-1)
 		depth = dist * z_multiplier
 		return depth
 
-	def depth_to_dist(self, depth):
+	def depth_to_dist(self, depth, batch_size, flg):
 		# this function converts the distance to camera center to depth w.r.t.
 		# the camera plane
 		cam = self.cam
-		xx,yy = np.meshgrid(np.arange(depth.shape[1]),np.arange(depth.shape[0]))
-		xc = (depth.shape[1]-1)/2
-		yc = (depth.shape[0]-1)/2
-		coeff = np.tan(cam['fov_x']/2/180*np.pi)
-		xx = (xx - xc)/depth.shape[1]*cam['dimx']/((cam['dimx']-1)/2) * coeff
-		yy = (yy - yc)/depth.shape[0]*cam['dimy']/((cam['dimx']-1)/2) * coeff
-		z_multiplier = np.sqrt(xx**2+yy**2+1)
-		dist = depth * z_multiplier
-		return dist
+		dimx = tf.convert_to_tensor(cam['dimx'], dtype=tf.float32)
+		dimy = tf.convert_to_tensor(cam['dimy'], dtype=tf.float32)
+		dist_x_shape = depth.shape.as_list()[2]
+		dist_y_shape = depth.shape.as_list()[1]
+		xx, yy = tf.meshgrid(list(range(dist_x_shape)), list(range(dist_y_shape)))
+		xx = tf.cast(xx, dtype=tf.float32)
+		yy = tf.cast(yy, dtype=tf.float32)
+		xc = tf.convert_to_tensor((dist_x_shape - 1) / 2, dtype=tf.float32)
+		yc = tf.convert_to_tensor((dist_y_shape - 1) / 2, dtype=tf.float32)
+		coeff = tf.tan(cam['fov_x'] / 2 / 180 * np.pi)
+		coeff = tf.cast(coeff, dtype=tf.float32)
+
+		dist_x_shape = tf.convert_to_tensor(dist_x_shape, dtype=tf.float32)
+		dist_y_shape = tf.convert_to_tensor(dist_y_shape, dtype=tf.float32)
+
+		xx = (xx - xc) / dist_x_shape * dimx / ((dimx - 1) / 2) * coeff
+		yy = (yy - yc) / dist_y_shape * dimy / ((dimy - 1) / 2) * coeff
+
+		z_multiplier = tf.sqrt(xx ** 2 + yy ** 2 + 1)
+		if flg == True: ##depth_to_dist
+			z_multiplier = z_multiplier
+		else:           ##dist_to_depth
+			z_multiplier = 1 / z_multiplier
+		z_multiplier = tf.expand_dims(tf.expand_dims(z_multiplier, axis=-1), axis=0)
+		z_multiplier = tf.tile(z_multiplier, multiples=[batch_size, 1, 1, 1])
+		dist_or_depth = depth * z_multiplier
+		return dist_or_depth, z_multiplier
 
 class deeptof(kinect_real_tf):
 	def __init__(self):
