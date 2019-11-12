@@ -328,6 +328,6 @@ ALL_INPUT_FN = {
 
 def get_input_fn(training_set, filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     base_input_fn = ALL_INPUT_FN[training_set]
-    return base_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32)
+    return base_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=batch_size)
 
 
