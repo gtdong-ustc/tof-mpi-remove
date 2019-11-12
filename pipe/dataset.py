@@ -66,6 +66,16 @@ def preprocessing(features, labels):
     labels['gt'] = gt_p
     return features, labels
 
+
+def preprocessing_deeptof(features, labels):
+    """
+    not konw some preprocess pipeline needed to use
+    :param features:
+    :param labels:
+    :return:
+    """
+    return features, labels
+
 def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     def _parse_function(serialized, height=height, width=width):
         features = \
@@ -121,9 +131,61 @@ def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch
 
     return batch_features, batch_labels
 
-def imgs_input_fn_inverse(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
-    batch_features, batch_labels = imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32)
-    return batch_labels, batch_features
+def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
+    def _parse_function(serialized, height=height, width=width):
+        features = \
+            {
+                'amps': tf.FixedLenFeature([], tf.string),
+                'depth': tf.FixedLenFeature([], tf.string),
+                'depth_ref': tf.FixedLenFeature([], tf.string)
+            }
+
+        parsed_example = tf.parse_single_example(serialized=serialized, features=features)
+
+        amps_shape = tf.stack([height, width, 1])
+        depth_shape = tf.stack([height , width , 1])
+        depth_ref_shape = tf.stack([height, width, 1])
+
+        amps_raw = parsed_example['amps']
+        depth_raw = parsed_example['depth']
+        depth_ref_raw = parsed_example['depth_ref']
+
+        # decode the raw bytes so it becomes a tensor with type
+
+        amps = tf.decode_raw(amps_raw, tf.float32)
+        amps = tf.amps(amps, tf.float32)
+        amps = tf.reshape(amps, amps_shape)
+
+        depth = tf.decode_raw(depth_raw, tf.float32)
+        depth = tf.reshape(depth, depth_shape)
+
+        depth_ref = tf.decode_raw(depth_ref_raw, tf.float32)
+        depth_ref = tf.cast(depth_ref, tf.float32)
+        depth_ref = tf.reshape(depth_ref, depth_ref_shape)
+
+        features = {'amps': amps, 'depth': depth}
+        labels = {'depth_ref': depth_ref}
+
+        return features, labels
+
+    dataset = tf.data.TFRecordDataset(filenames=filenames)
+    # Parse the serialised data to TFRecords files.
+    # returns Tensorflow tensors for the image and labels.
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.map(
+        lambda features, labels: preprocessing_deeptof(features, labels)
+    )
+
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=256)
+
+    dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    batch_dataset = dataset.batch(batch_size)  # Batch Size
+    iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+
+    return batch_features, batch_labels
+
 """
 ###
 This function has been temporarily deleted
@@ -256,5 +318,14 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
 
     output = output * mask_inside
     return output, coords_h_pos, coords_w_pos
+
+ALL_INPUT_FN = {
+    'imgs_input_fn': imgs_input_fn,
+    'imgs_input_fn_deeptof': imgs_input_fn_deeptof
+}
+
+def get_input_fn(training_set, filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
+    base_input_fn = ALL_INPUT_FN[training_set]
+    return base_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32)
 
 
