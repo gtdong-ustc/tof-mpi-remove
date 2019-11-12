@@ -71,6 +71,7 @@ def tof_net_func(features, labels, mode, params):
         amps = features['amps']
         depth_kinect = full
         depth_kinect_msk = depth_kinect > 1e-4
+        depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
 
     ### add kinect_msk
     loss_mask_dict['depth_kinect_msk'] = depth_kinect_msk
