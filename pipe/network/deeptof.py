@@ -21,7 +21,7 @@ def deeptof(x, flg, regular, batch_size, range):
         Return: output is 4-D Tensor (BxHxWxC)
     """
 
-    pref = 'unet_'
+    pref = 'deeptof_'
 
     # whether to train flag
     train_ae = flg

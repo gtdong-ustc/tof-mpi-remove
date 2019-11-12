@@ -179,7 +179,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
                                      params={'learning_rate': learning_rate, 'batch_size': batch_size, 'model_dir': model_dir,
                                              'loss_fn': loss_fn, 'deformable_range': deformable_range,
-                                             'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':True})
+                                             'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':False})
 
 
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: imgs_input_fn(filenames=train_data_path, height=424, width=512,
@@ -201,7 +201,7 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
                 'deformable_range': deformable_range, 'loss_fn':loss_fn,
-                'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':True})
+                'model_name': model_name, 'loss_mask': loss_mask, 'no_gt_flg':False})
     tof_net.evaluate(input_fn=lambda: imgs_input_fn(filenames=evaluate_data_path, height=424, width=512,
         shuffle=False, repeat_count=1, batch_size=batch_size), checkpoint_path=model_dir + '/model.ckpt-' + checkpoint_steps)
 
