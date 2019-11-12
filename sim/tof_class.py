@@ -11,7 +11,7 @@ from utils import *
 import scipy.misc
 import scipy.interpolate
 from matplotlib import pyplot as plt
-
+root_dir = '/userhome/dataset/original/FLAT'
 class cam_baseline:
 	# baseline tof camera, uses square wave for emission and modulation
 	# other cameras can inherit from this class
@@ -888,7 +888,7 @@ class kinect_real_tf:
 		# response graph
 		self.dtype= tf.float32
 		self.rg = self.res_graph()
-		self.dir = '../params/kinect/'
+		self.dir = root_dir + '/params/kinect/'
 
 		# delay map
 		self.cam['delay'] = np.loadtxt(self.dir+'delay.txt',delimiter=',')
@@ -1745,7 +1745,7 @@ class kinect_real_tf:
 class deeptof(kinect_real_tf):
 	def __init__(self):
 		cam = {}
-		self.dir = '../params/deeptof/'
+		self.dir = root_dir + '/params/deeptof/'
 
 		# camera dict
 		cam['dimx'] = 512
@@ -1990,7 +1990,7 @@ class deeptof(kinect_real_tf):
 class phasor(kinect_real_tf):
 	def __init__(self):
 		cam = {}
-		self.dir = '../params/phasor/'
+		self.dir = root_dir + '/params/phasor/'
 
 		# camera dict
 		cam['dimx'] = 512
