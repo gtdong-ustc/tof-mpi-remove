@@ -1,33 +1,8 @@
 import sys
-
-sys.path.insert(0, '../sim/')
-import numpy as np
+sys.path.insert(0, './module/')
 import tensorflow as tf
-import os, json, glob
-import imageio
-import matplotlib
-import math
-# matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from utils import *
-from tof_class import *
-import pdb
-import pickle
-import time
-import scipy.misc
-from scipy import sparse
-import scipy.interpolate
-from copy import deepcopy
-from joblib import Parallel, delayed
-import multiprocessing
-from kinect_spec import *
 from dataset import *
-import cv2
-from numpy import linalg as LA
 
-from tensorflow.contrib import learn
-from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
 tf.logging.set_verbosity(tf.logging.INFO)
 

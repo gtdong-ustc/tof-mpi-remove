@@ -1,6 +1,6 @@
 import sys
 
-sys.path.insert(0, '../module/')
+sys.path.insert(0, './module/')
 import tensorflow as tf
 
 tf.logging.set_verbosity(tf.logging.INFO)
