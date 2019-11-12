@@ -1,6 +1,6 @@
 import sys
 
-sys.path.inset(0, '../module/')
+sys.path.insert(0, '../module/')
 import tensorflow as tf
 from dataset import *
 from activation import *
