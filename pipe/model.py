@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, '../network/')
+sys.path.insert(0, './network/')
 
 from deformable_kpn import deformable_kpn
 from deformable_kpn_raw import deformable_kpn_raw
