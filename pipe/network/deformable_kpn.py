@@ -241,9 +241,10 @@ def deformable_subnet(x, flg, regular):
     gain_depth_feature = []
     current_input = tf.identity(ae_inputs, name="input")
     for i in range(1, len(n_filters_depth_feature)):
-        name = pref + "depth _conv_" + str(i)
+        name = pref + "depth_conv_" + str(i)
 
         # define the initializer
+        activation = relu
         if name + '_bias' in inits:
             bias_init = eval(name + '_bias()')
         else:
@@ -252,7 +253,6 @@ def deformable_subnet(x, flg, regular):
             kernel_init = eval(name + '_kernel()')
         else:
             kernel_init = None
-         activation = relu
 
         # convolution
         gain_depth_feature.append( \
@@ -423,7 +423,7 @@ def deformable_kpn(x, flg, regular, batch_size, deformable_range):
     N = 9
     features, offsets, depth_feature = deformable_subnet(x, flg, regular)
 
-    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(depth_feature, offsets, N, batch_size, deformable_range)
+    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
 
     # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
 
