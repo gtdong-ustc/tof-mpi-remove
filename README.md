@@ -61,26 +61,26 @@ The parameters available are as follows
 ```
 Arg
 ├───modelName		# Select the model required during training
-│   ├───deeptof			   # Completed
-│   ├───deformable_kpn		   # Completed
-│   ├───deformable_kpn_raw	   # Completed but not debug (raw express the netword is trained by raw measurement)
-│   ├───kpn_raw		       # Completed but not debug (FLAT: MRM)
-│   ├───kpn		           # Not completed 
+│   ├───deeptof               # Completed
+│   ├───deformable_kpn        # Completed
+│   ├───deformable_kpn_raw    # Completed but not debug (raw express the netword is trained by raw measurement)
+│   ├───kpn_raw               # Completed but not debug (FLAT: MRM)
+│   ├───kpn                   # Not completed 
 │   ├───deformable_ddfn_kpn   # Not completed (DDFN in "Real-world Image Denoising with Deep Boosting")
 │   ├───tof_kpn               # Not completed (network in "Deep End-to-End Alignment and Refinement for Time-of-Flight RGB-D Module")
-│   └───coarse_fine_unet	   # Not completed (network in "Deep Learning for MPI Removal in ToF Sensors")
+│   └───coarse_fine_unet      # Not completed (network in "Deep Learning for MPI Removal in ToF Sensors")
 ├───trainingSet		# Select the dataset required during training
-│   ├───FLAT_reflection_s5	   # noise: MPI ,image shape 424 512
-│   ├───FLAT_full_s5		   # noise: MPI + shotnoise ,image shape 424 512
-│   ├───deeptof_reflection	   # noise: MPI ,image shape 256 256
-│   └───ToFFlyingThings3D	   # noise: MPI ,image shape 384 512 (not completed)
+│   ├───FLAT_reflection_s5    # noise: MPI ,image shape 424 512
+│   ├───FLAT_full_s5          # noise: MPI + shotnoise ,image shape 424 512
+│   ├───deeptof_reflection    # noise: MPI ,image shape 256 256
+│   └───ToFFlyingThings3D     # noise: MPI ,image shape 384 512 (not completed)
 ├───flagMode		# Select the running mode of the code
-│   ├───train			      # train model
-│   ├───eval			      # evaluate model
-│   └───output			      # output depth prediction, offsets, weight
+│   ├───train                # train model
+│   ├───eval                 # evaluate model
+│   └───output               # output depth prediction, offsets, weight
 └───lossMask	    # Select the loss mask to be used during training
-    ├───gt_msk			      # Non-zero region in groundtruth
-    └───depth_kinect_msk	  # Non-zero region in depth input
+    ├───gt_msk                # Non-zero region in groundtruth
+    └───depth_kinect_msk      # Non-zero region in depth input
 ```
 
    
