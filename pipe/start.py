@@ -233,7 +233,7 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for training of a Deformable KPN Network')
-    parser.add_argument("-t", "--trainingSet", help='the name to the list file with training set', default = 'x5_reflection_ideal_gt', type=str)
+    parser.add_argument("-t", "--trainingSet", help='the name to the list file with training set', default = 'FLAT_reflection_s5', type=str)
 
     parser.add_argument("-m", "--modelName", help="name of the denoise model to be used", default="deformable_kpn")
     parser.add_argument("-l", "--lr", help="initial value for learning rate", default=1e-5, type=float)
@@ -250,8 +250,8 @@ if __name__ == '__main__':
     parser.add_argument("-g", '--gpuNumber', help="The number of GPU used in training", default=2, type=int)
     args = parser.parse_args()
 
-
-    model_dir = './models/kinect/' + args.modelName
+    dataset_dir = '/userhome/dataset/tfrecords'
+    model_dir = './result/kinect/' + args.modelName
     if not os.path.exists(model_dir):
         os.mkdir(model_dir)
 
@@ -270,8 +270,9 @@ if __name__ == '__main__':
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    train_data_path = os.path.join('../FLAT/kinect_tfrecords/' + args.trainingSet, args.trainingSet + '_train.tfrecords')
-    evaluate_data_path = os.path.join('../FLAT/kinect_tfrecords/' + args.trainingSet, args.trainingSet + '_eval.tfrecords')
+    dataset_path = os.path.join(dataset_dir, args.trainingSet)
+    train_data_path = os.path.join(dataset_path, args.trainingSet + '_train.tfrecords')
+    evaluate_data_path = os.path.join(dataset_path, args.trainingSet + '_eval.tfrecords')
 
 
     if args.flagEval == 'train':
