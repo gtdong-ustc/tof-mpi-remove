@@ -6,6 +6,9 @@
 import numpy as np
 from utils import *
 import pdb
+
+root_dir = '/userhome/dataset/original/FLAT'
+
 def kinect_sin_spec(cam):
 	# camera function
 	cam['T'] 		= np.array([2e4, 1e5, 4/3*1e4])
@@ -98,7 +101,7 @@ def kinect_mask():
 
 def kinect_real_spec(cam):
 	# load the camera function
-	prms = np.loadtxt('../params/kinect/cam_func_params.txt',delimiter=',')
+	prms = np.loadtxt(root_dir + '/params/kinect/cam_func_params.txt',delimiter=',')
 
 	# camera function
 	coef = 4*PI/3e-4
@@ -138,7 +141,7 @@ def kinect_real_tf_spec():
 	cam['fov_x'] = 70
 
 	# load the camera function
-	prms = np.loadtxt('../params/kinect/cam_func_params.txt',delimiter=',')
+	prms = np.loadtxt(root_dir + '/params/kinect/cam_func_params.txt',delimiter=',')
 
 	# camera function
 	coef = 4*PI/3e-4
