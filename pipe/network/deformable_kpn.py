@@ -391,11 +391,11 @@ def deformable_kpn(x, flg, regular, batch_size, deformable_range):
 
     # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
 
-    # inputs = tf.concat([x, features, samples], axis=-1)
-
     samples = dof_subnet(samples, flg, regular)
 
-    weights = weight_subnet(features, flg, regular)
+    inputs = tf.concat([x, features, samples], axis=-1)
+
+    weights = weight_subnet(inputs, flg, regular)
     weights = weights - tf.reduce_mean(weights)
     depth_output = weights * samples
     depth_output = tf.reduce_sum(depth_output, axis=-1, keep_dims=True)
