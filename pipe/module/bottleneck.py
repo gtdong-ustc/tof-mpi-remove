@@ -1,4 +1,5 @@
-
+import tensorflow as tf
+from activation import *
 def bottleneck(x, flg, regular, inits, i):
     pref = 'bottleneck_'
     block_filters = [

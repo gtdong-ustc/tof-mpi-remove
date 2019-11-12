@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 def leaky_relu(x):
     alpha = 0.1
     x_pos = tf.nn.relu(x)
