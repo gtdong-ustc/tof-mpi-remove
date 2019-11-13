@@ -111,6 +111,7 @@ def processPixelStage1_mat(m):
     return ir_image_a, ir_image_b, ir_amplitude
 def processMeasurementTriple(m, abMultiplierPerFrq, trig_table):
     # m is (None,424,512,3)
+
     zmultiplier = tf.constant(z_table, dtype=dtype)
 
     # judge where saturation happens
@@ -146,10 +147,6 @@ def processMeasurementTriple(m, abMultiplierPerFrq, trig_table):
 
     return m_out
 def processPixelStage2(ira, irb, iramp):
-    # m is (None, 424, 512, 9)
-    # the first three is measurement a
-    # the second three is measurement b
-    # the third three is amplitude
     ratio = 100
     tmp0 = tf.atan2(ratio * (irb + 1e-10), ratio * (ira + 1e-10))
     flg = tf.cast(tf.less(tmp0, 0.0), dtype)
@@ -259,14 +256,6 @@ def processPixelStage2(ira, irb, iramp):
 
     cond1 = tf.cast(tf.less(0.0, depth_linear), dtype) * \
             tf.cast(tf.less(0.0, max_depth), dtype)
-
-    # xmultiplier = (xmultiplier * 90) / (max_depth**2 * 8192.0)
-
-    # depth_fit = depth_linear / (-depth_linear * xmultiplier + 1)
-
-    # depth_fit = tf.maximum(depth_fit, 0.0)
-    # depth = cond1 * depth_fit + (1 - cond1) * depth_linear
-
     depth_out = depth
     ir_sum_out = ir_sum
     ir_out = tf.minimum( \
@@ -282,7 +271,6 @@ def filterPixelStage1(m):
     # the second three is measurement b
     # the third three is amplitude
 
-    #
     norm2 = m[:, :, :, 0:3] ** 2 + m[:, :, :, 3:6] ** 2
     inv_norm = 1.0 / tf.sqrt(norm2)
 
