@@ -419,7 +419,7 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
     return weights
 
 
-def deformable_kpn(x, flg, regular, batch_size, deformable_range):
+def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
     N = 9
     features, offsets = deformable_subnet(x, flg, regular)
     samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
