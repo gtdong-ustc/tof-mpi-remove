@@ -31,6 +31,14 @@ gpu_device_number_list = [
 ]
 
 def tof_net_func(features, labels, mode, params):
+    """
+    This is the network function of tensorflow estimator API
+    :param features:
+    :param labels:
+    :param mode:
+    :param params:
+    :return:
+    """
     depth_kinect = None
     depth_kinect_msk = None
     raw_new = None
@@ -188,6 +196,25 @@ def tof_net_func(features, labels, mode, params):
 
 def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, learning_rate, batch_size, traing_steps,
                      evaluate_steps, deformable_range, model_name, checkpoint_steps, loss_mask, gpu_Number, training_set, image_shape):
+    """
+    This function represents the training mode of the code
+    :param train_data_path:
+    :param evaluate_data_path:
+    :param model_dir:
+    :param loss_fn:
+    :param learning_rate:
+    :param batch_size:
+    :param traing_steps:
+    :param evaluate_steps:
+    :param deformable_range:
+    :param model_name:
+    :param checkpoint_steps:
+    :param loss_mask:
+    :param gpu_Number:
+    :param training_set:
+    :param image_shape:
+    :return: no return
+    """
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
@@ -215,6 +242,21 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
 
 def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range,
                     loss_fn, model_name, loss_mask, gpu_Number, training_set, image_shape):
+    """
+    This function represents the eval mode of the code
+    :param evaluate_data_path:
+    :param model_dir:
+    :param batch_size:
+    :param checkpoint_steps:
+    :param deformable_range:
+    :param loss_fn:
+    :param model_name:
+    :param loss_mask:
+    :param gpu_Number:
+    :param training_set:
+    :param image_shape:
+    :return:
+    """
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
@@ -231,6 +273,22 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
 
 def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range,
                    loss_fn, model_name, loss_mask, gpu_Number, training_set, image_shape):
+    """
+    This function represents the output mode of the code
+    :param result_path:
+    :param evaluate_data_path:
+    :param model_dir:
+    :param batch_size:
+    :param checkpoint_steps:
+    :param deformable_range:
+    :param loss_fn:
+    :param model_name:
+    :param loss_mask:
+    :param gpu_Number:
+    :param training_set:
+    :param image_shape:
+    :return:
+    """
     for i in range(gpu_Number):
         session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
     configuration = tf.estimator.RunConfig(
