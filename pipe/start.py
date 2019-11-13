@@ -195,7 +195,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
         keep_checkpoint_max=10,
         save_checkpoints_steps=200,
         session_config=session_config,
-        save_summary_steps=5,
+        save_summary_steps=100,
         log_step_count_steps=5
     )  # set the frequency of logging steps for loss function
 
