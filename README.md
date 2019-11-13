@@ -68,6 +68,7 @@ Arg
 │   ├───kpn                   # Not completed 
 │   ├───deformable_ddfn_kpn   # Not completed (DDFN in "Real-world Image Denoising with Deep Boosting")
 │   ├───tof_kpn               # Not completed (network in "Deep End-to-End Alignment and Refinement for Time-of-Flight RGB-D Module")
+│   ├───jdpn                  # Not completed (network in "Deformable Kernel Network for Joint Image Filtering")
 │   └───coarse_fine_unet      # Not completed (network in "Deep Learning for MPI Removal in ToF Sensors")
 ├───trainingSet		# Select the dataset required during training
 │   ├───FLAT_reflection_s5    # noise: MPI ,image shape 424 512
