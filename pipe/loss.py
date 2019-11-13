@@ -5,6 +5,29 @@ import tensorflow as tf
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
+def l1(x,y,mask=None):
+	"""
+	pixelwise reconstruction error
+	Args:
+		x: predicted image
+		y: target image
+		mask: compute only on this points
+	"""
+	if mask is None:
+		mask=tf.ones_like(x, dtype=tf.float32)
+	return mask*tf.abs(x-y)
+
+def l2(x,y,mask=None):
+	"""
+	PixelWise squarred error
+	Args:
+		x: predicted image
+		y: target image
+		mask: compute only on this points
+	"""
+	if mask is None:
+		mask=tf.ones_like(x, dtype=tf.float32)
+	return mask*tf.square(x-y)
 
 def huber(x, y, c=1.0):
     diff = x - y
