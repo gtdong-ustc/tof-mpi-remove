@@ -2,40 +2,8 @@
 
 This repository provides a deformable kernel denoise methods for time-of-flight (ToF) artifacts removal.
 
-## Organization and access of the FLAT dataset
- The FLAT dataset is organized in the following way:
-```
-FLAT
-├───deeptof		# simulation of DeepToF
-│   ├───full			# raw measurements
-│   └───list			# lists of files to use for each task, automatically generated from ./sim/deeptof_prepare.py
-├───kinect		# simulation of kinect 2
-│   ├───full			# raw measurements
-│   ├───noise			# raw measurements without multi path interference (MPI), with noise
-│   ├───ideal			# raw measurements without MPI and noise
-│   ├───reflection		# raw measurements with MPI, and without noise
-│   ├───gt			# true depth
-│   ├───list			# lists of files to use for each task, automatically generated from ./sim/kinect_prepare.py
-│   │   ├───all				# visualization of all scenes 
-│   │   ├───motion_background		# visualization of scenes for a certain task
-│   │   ├───motion_foreground		# visualization of scenes for a certain task
-│   │   ├───motion_real			# visualization of scenes for a certain task
-│   │   ├───shot_noise_test		# visualization of scenes for a certain task
-│   │   ├───test			# visualization of scenes for a certain task
-│   │   ├───test_dyn			# visualization of scenes for a certain task
-│   │   ├───train			# visualization of scenes for a certain task
-│   │   └───val				# visualization of scenes for a certain task
-│   └───msk			# the mask of background
-├───phasor		# simulation of Phasor
-│   ├───full			# raw measurements
-│   │   ├───FILE_ID		
-│   └───list			# lists of files to use for each task, automatically generated from ./sim/phasor_prepare.py
-└───trans_render	# transient rendering files
-    ├───dyn			# dynamic scenes
-    └───static			# static scenes
-```
+## How to use the code
 
-##How to use the code
 the project starts with the 'start.py'. Through this file, you can select different models, data sets and loss functions for training, and you can switch between train, eval and output modes by adjusting parameters
 ```
 parser = argparse.ArgumentParser(description='Script for training of a Deformable KPN Network')
@@ -76,13 +44,30 @@ Arg
 │   ├───deeptof_reflection    # noise: MPI ,image shape 256 256
 │   └───ToFFlyingThings3D     # noise: MPI ,image shape 384 512 (not completed)
 ├───flagMode		# Select the running mode of the code
-│   ├───train                # train model
-│   ├───eval                 # evaluate model
-│   └───output               # output depth prediction, offsets, weight
+│   ├───train                 # train model
+│   ├───eval                  # evaluate model
+│   └───output                # output depth prediction, offsets, weight
+├───lossType		# Select the loss function in training
+│   ├───mean_l1               # the mean of L1 loss between input and gt
+│   ├───mean_l2               # the mean of L2 loss
+│   ├───sum_l1                # the sum of L1 loss
+│   ├───sum_l2                # the sum of L2 loss
+│   ├───smoothness            # depth map smoothness loss
+│   ├───SSIM                  # the sum of structural similarity loss 
+│   ├───SSIM_l1               # the sum of structural similarity loss + L1 loss
+│   ├───mean_SSIM             # the mean of structural similarity loss 
+│   ├───ZNCC                  # Zero Mean Normalized Cross-Correlation loss
+│   ├───cos_similarity        # cos_similarity
+│   ├───mean_huber            # the mean of huber loss
+│   └───sum_huber             # the sum of huber loss
 └───lossMask	    # Select the loss mask to be used during training
     ├───gt_msk                # Non-zero region in groundtruth
     └───depth_kinect_msk      # Non-zero region in depth input
 ```
+For example
 
+```
+python start -b 8 -s 1000 -l 0.0001 -t FLAT_reflection_s5 -m deformable_kpn -o mean_l2 
+```
    
 
