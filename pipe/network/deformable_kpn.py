@@ -236,45 +236,45 @@ def deformable_subnet(x, flg, regular):
         current_input = gain_offset[-1]
     ####################################################################################################################
     # through some conv layers to gain depth feature
-    n_filters_depth_feature = [16, 16, 16, 1]
-    filter_sizes_depth_feature = [5, 5, 5, 5]
-    gain_depth_feature = []
-    current_input = tf.identity(ae_inputs, name="input")
-    for i in range(1, len(n_filters_depth_feature)):
-        name = pref + "depth_conv_" + str(i)
-
-        # define the initializer
-        activation = relu
-        if name + '_bias' in inits:
-            bias_init = eval(name + '_bias()')
-        else:
-            bias_init = tf.zeros_initializer()
-        if name + '_kernel' in inits:
-            kernel_init = eval(name + '_kernel()')
-        else:
-            kernel_init = None
-
-        # convolution
-        gain_depth_feature.append( \
-            tf.layers.conv2d( \
-                inputs=current_input,
-                filters=n_filters_depth_feature[i],
-                kernel_size=[filter_sizes_depth_feature[i], filter_sizes_depth_feature[i]],
-                padding="same",
-                activation=activation,
-                trainable=train_ae,
-                kernel_initializer=kernel_init,
-                bias_initializer=bias_init,
-                name=name,
-            )
-        )
-        current_input = gain_depth_feature[-1]
+    # n_filters_depth_feature = [16, 16, 16, 1]
+    # filter_sizes_depth_feature = [5, 5, 5, 5]
+    # gain_depth_feature = []
+    # current_input = tf.identity(ae_inputs, name="input")
+    # for i in range(1, len(n_filters_depth_feature)):
+    #     name = pref + "depth_conv_" + str(i)
+    #
+    #     # define the initializer
+    #     activation = relu
+    #     if name + '_bias' in inits:
+    #         bias_init = eval(name + '_bias()')
+    #     else:
+    #         bias_init = tf.zeros_initializer()
+    #     if name + '_kernel' in inits:
+    #         kernel_init = eval(name + '_kernel()')
+    #     else:
+    #         kernel_init = None
+    #
+    #     # convolution
+    #     gain_depth_feature.append( \
+    #         tf.layers.conv2d( \
+    #             inputs=current_input,
+    #             filters=n_filters_depth_feature[i],
+    #             kernel_size=[filter_sizes_depth_feature[i], filter_sizes_depth_feature[i]],
+    #             padding="same",
+    #             activation=activation,
+    #             trainable=train_ae,
+    #             kernel_initializer=kernel_init,
+    #             bias_initializer=bias_init,
+    #             name=name,
+    #         )
+    #     )
+    #     current_input = gain_depth_feature[-1]
     ####################################################################################################################
     features = tf.identity(upsamp[-1], name='ae_output')
     offsets = tf.identity(gain_offset[-1], name="offsets_output")
-    depth_feature = tf.identity(gain_depth_feature[-1], name="depth_feature_output")
-    return features, offsets, depth_feature
-
+    # depth_feature = tf.identity(gain_depth_feature[-1], name="depth_feature_output")
+    # return features, offsets, depth_feature
+    return features, offsets
 def dof_subnet(inputs, flg, regular):
     pref = 'dof_subnet_'
     # whether to train flag
@@ -421,8 +421,7 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
 
 def deformable_kpn(x, flg, regular, batch_size, deformable_range):
     N = 9
-    features, offsets, depth_feature = deformable_subnet(x, flg, regular)
-
+    features, offsets = deformable_subnet(x, flg, regular)
     samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
 
     # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
