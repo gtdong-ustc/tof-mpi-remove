@@ -66,14 +66,14 @@ def deformable_subnet(x, flg, regular):
         256,
     ]
     filter_sizes = [
-        5, 5, 5,
-        5, 5, 5,
-        5, 5, 5,
-        5, 5, 5,
-        5, 5, 5,
-        5, 5, 5,
-        5,
-        5,
+        3, 3, 3,
+        3, 3, 3,
+        3, 3, 3,
+        3, 3, 3,
+        3, 3, 3,
+        3, 3, 3,
+        3,
+        3,
     ]
     pool_sizes = [ \
         1, 1, 1,
@@ -379,7 +379,7 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
                 inits.append(name_f)
 
     n_filters_mix = [9, 9, 9, 9]
-    filter_sizes_mix = [5, 5, 5, 5]
+    filter_sizes_mix = [3, 3, 3, 3]
     mix = []
     for i in range(1, len(n_filters_mix)):
         name = pref + "conv_" + str(i)
