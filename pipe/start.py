@@ -215,8 +215,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     :param image_shape:
     :return: no return
     """
-    for i in range(gpu_Number):
-        session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
+    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
         keep_checkpoint_max=10,
@@ -257,8 +256,8 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
     :param image_shape:
     :return:
     """
-    for i in range(gpu_Number):
-        session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
+
+    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
         session_config=session_config,
@@ -289,8 +288,7 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
     :param image_shape:
     :return:
     """
-    for i in range(gpu_Number):
-        session_config = tf.ConfigProto(device_count=gpu_device_number_list[i])
+    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
         session_config=session_config,

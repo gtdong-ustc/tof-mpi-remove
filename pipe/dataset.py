@@ -66,7 +66,6 @@ def preprocessing(features, labels):
     labels['gt'] = gt_p
     return features, labels
 
-
 def preprocessing_deeptof(features, labels):
     """
     not konw some preprocess pipeline needed to use
@@ -187,30 +186,14 @@ def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=
 
     return batch_features, batch_labels
 
-"""
-###
-This function has been temporarily deleted
-###
-def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w_pos):
-    N = samples.shape.as_list()[-1]
-    XX_s, YY_s, ZZ_s = map2mesh_samples(samples, tof_cam.cam, batch_size, z_multiplier, yy_coords=coords_h_pos, xx_coords=coords_w_pos)
-    XX, YY, ZZ = map2mesh(dist, tof_cam.cam, batch_size, z_multiplier)
-    XX = tf.tile(XX, multiples=[1,1,1,N])
-    YY = tf.tile(YY, multiples=[1, 1, 1, N])
-    ZZ = tf.tile(ZZ, multiples=[1, 1, 1, N])
-    dist = tf.tile(dist, multiples=[1, 1, 1, N])
-    dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
-    dof_samples = dof_samp_cur + samples + dist
-    return dof_samples
-"""
-
 def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     """
-
+    This function used to sample from depth map, a simple tf version of bilinear interpolation function.
     :param input:
     :param offsets:
     :param N:
     :param batch_size:
+    :param deformable_range:
     :return:
     """
     # input_size = tf.shape(input)
@@ -319,6 +302,23 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
 
     output = output * mask_inside
     return output, coords_h_pos, coords_w_pos
+
+"""
+###
+This function has been temporarily deleted
+###
+def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w_pos):
+    N = samples.shape.as_list()[-1]
+    XX_s, YY_s, ZZ_s = map2mesh_samples(samples, tof_cam.cam, batch_size, z_multiplier, yy_coords=coords_h_pos, xx_coords=coords_w_pos)
+    XX, YY, ZZ = map2mesh(dist, tof_cam.cam, batch_size, z_multiplier)
+    XX = tf.tile(XX, multiples=[1,1,1,N])
+    YY = tf.tile(YY, multiples=[1, 1, 1, N])
+    ZZ = tf.tile(ZZ, multiples=[1, 1, 1, N])
+    dist = tf.tile(dist, multiples=[1, 1, 1, N])
+    dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
+    dof_samples = dof_samp_cur + samples + dist
+    return dof_samples
+"""
 
 ALL_INPUT_FN = {
     'FLAT_reflection_s5': imgs_input_fn,
