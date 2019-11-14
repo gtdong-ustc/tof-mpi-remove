@@ -450,8 +450,6 @@ def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
 
         depth_residual_pyramid.append(current_depth_residual * depth_residual_scale[i])
 
-    depth_residual = tf.concat(depth_residual_pyramid, axis=-1)
-    depth_residual = tf.reduce_sum(depth_residual, axis=-1, keep_dims=True)
-    depth_output = x + depth_residual
+    depth_output = [x + depth_residual_pyramid[i] for i in range(len(depth_residual_scale))]
 
     return depth_output, current_offset
