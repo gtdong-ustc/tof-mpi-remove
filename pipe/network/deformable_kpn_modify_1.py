@@ -27,6 +27,7 @@ def deformable_subnet(x, flg, regular):
 
     # whether to train flag
     train_ae = flg
+    N = 9
 
     # define initializer for the network
     keys = ['conv', 'upsample']
@@ -56,52 +57,47 @@ def deformable_subnet(x, flg, regular):
 
     # autoencoder
     n_filters = [
-        32, 32, 32,
-        32, 32, 32,
-        64, 64, 64,
-        64, 64, 64,
-        128, 128, 128,
-        128, 128, 128,
-        256,
-        256,
+        16, 16,
+        16, 16,
+        32, 32,
+        32, 32,
+        64, 64,
+        64,
+        128,
     ]
     filter_sizes = [
-        3, 3, 3,
-        3, 3, 3,
-        3, 3, 3,
-        3, 3, 3,
-        3, 3, 3,
-        3, 3, 3,
+        3, 3,
+        3, 3,
+        3, 3,
+        3, 3,
+        3, 3,
         3,
         3,
     ]
     pool_sizes = [ \
-        1, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
+        1, 1,
+        2, 1,
+        2, 1,
+        2, 1,
+        2, 1,
         2,
         1,
     ]
     pool_strides = [
-        1, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
-        2, 1, 1,
+        1, 1,
+        2, 1,
+        2, 1,
+        2, 1,
+        2, 1,
         2,
         1,
     ]
     skips = [ \
-        False, False, False,
-        True, False, False,
-        True, False, False,
-        True, False, False,
-        True, False, False,
-        True, False, False,
+        False, False,
+        True, False,
+        True, False,
+        True, False,
+        True, False,
         True,
         False,
     ]
@@ -114,6 +110,8 @@ def deformable_subnet(x, flg, regular):
     # convolutional layers: encoder
     conv = []
     pool = [current_input]
+    offset_pyramid = []
+    weight_pyramid = []
     for i in range(1, len(n_filters)):
         name = pref + "conv_" + str(i)
 
@@ -196,44 +194,13 @@ def deformable_subnet(x, flg, regular):
         if skips[i - 1] == True:
             # current_input = current_input + pool[i - 1]
             current_input = tf.concat([current_input, pool[i - 1]], axis=-1)
+
+            current_offset = offset_subnet(current_input, flg=train_ae, regular=regular)
+            current_weight = weight_subnet(current_input, flg=train_ae, regular=regular)
+            offset_pyramid.append(current_offset)
+            weight_pyramid.append(current_weight)
+
         upsamp.append(current_input)
-    ####################################################################################################################
-    # through some 1x1 conv layers gain offsets
-    n_filters_mix = [32, 32, 32, 18]
-    filter_sizes_mix = [5, 5, 5, 5]
-    gain_offset = []
-    for i in range(1, len(n_filters_mix)):
-        name = pref + "offset_conv_" + str(i)
-
-        # define the initializer
-        if name + '_bias' in inits:
-            bias_init = eval(name + '_bias()')
-        else:
-            bias_init = tf.zeros_initializer()
-        if name + '_kernel' in inits:
-            kernel_init = eval(name + '_kernel()')
-        else:
-            kernel_init = None
-        if i == (len(n_filters_mix) - 1):
-            activation = None
-        else:
-            activation = relu
-
-        # convolution
-        gain_offset.append( \
-            tf.layers.conv2d( \
-                inputs=current_input,
-                filters=n_filters_mix[i],
-                kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
-                padding="same",
-                activation=activation,
-                trainable=train_ae,
-                kernel_initializer=kernel_init,
-                bias_initializer=bias_init,
-                name=name,
-            )
-        )
-        current_input = gain_offset[-1]
     ####################################################################################################################
     # through some conv layers to gain depth feature
     # n_filters_depth_feature = [16, 16, 16, 1]
@@ -270,11 +237,19 @@ def deformable_subnet(x, flg, regular):
     #     )
     #     current_input = gain_depth_feature[-1]
     ####################################################################################################################
+    current_offset = offset_subnet(upsamp[-1], flg=train_ae, regular=regular)
+    offset_pyramid.append(current_offset)
+    current_weight = weight_subnet(upsamp[-1], flg=train_ae, regular=regular)
+    weight_pyramid.append(current_weight)
+
     features = tf.identity(upsamp[-1], name='ae_output')
-    offsets = tf.identity(gain_offset[-1], name="offsets_output")
+    offset_pyramid_output = tf.identity(offset_pyramid, name='offset_pyramid_output')
+    weight_pyramid_output = tf.identity(weight_pyramid, name='weight_pyramid_output')
+
+    # offsets = tf.identity(gain_offset[-1], name="offsets_output")
     # depth_feature = tf.identity(gain_depth_feature[-1], name="depth_feature_output")
     # return features, offsets, depth_feature
-    return features, offsets
+    return features, offset_pyramid_output, weight_pyramid_output
 def dof_subnet(inputs, flg, regular):
     pref = 'dof_subnet_'
     # whether to train flag
@@ -306,8 +281,8 @@ def dof_subnet(inputs, flg, regular):
                     "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
                 inits.append(name_f)
 
-    n_filters_mix = [9, 9, 9, 9]
-    filter_sizes_mix = [1, 1, 1, 1]
+    n_filters_mix = [9, 9]
+    filter_sizes_mix = [1, 1]
     mix = []
     for i in range(1, len(n_filters_mix)):
         name = pref + "conv_" + str(i)
@@ -378,8 +353,8 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
                     "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
                 inits.append(name_f)
 
-    n_filters_mix = [9, 9, 9, 9]
-    filter_sizes_mix = [3, 3, 3, 3]
+    n_filters_mix = [9, 9]
+    filter_sizes_mix = [3, 3]
     mix = []
     for i in range(1, len(n_filters_mix)):
         name = pref + "conv_" + str(i)
@@ -418,23 +393,125 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
     weights = tf.identity(current_input, name='wt_output')
     return weights
 
+def offset_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
+    pref = 'offset_subnet_'
+
+    # whether to train flag
+    train_ae = flg
+    current_input = inputs
+    # define initializer for the network
+    keys = ['conv', 'upsample']
+    keys_avoid = ['OptimizeLoss']
+    inits = []
+
+    init_net = None
+    if init_net != None:
+        for name in init_net.get_variable_names():
+            # select certain variables
+            flag_init = False
+            for key in keys:
+                if key in name:
+                    flag_init = True
+            for key in keys_avoid:
+                if key in name:
+                    flag_init = False
+            if flag_init:
+                name_f = name.replace('/', '_')
+                num = str(init_net.get_variable_value(name).tolist())
+                # self define the initializer function
+                from tensorflow.python.framework import dtypes
+                from tensorflow.python.ops.init_ops import Initializer
+                exec(
+                    "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
+                inits.append(name_f)
+
+    n_filters_mix = [18, 18]
+    filter_sizes_mix = [3, 3]
+    gain_offset = []
+    for i in range(1, len(n_filters_mix)):
+        name = pref + "offset_conv_" + str(i)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+        if i == (len(n_filters_mix) - 1):
+            activation = None
+        else:
+            activation = relu
+
+        # convolution
+        gain_offset.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters_mix[i],
+                kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
+                padding="same",
+                activation=activation,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        current_input = gain_offset[-1]
+
+    weights = tf.identity(current_input, name='wt_output')
+    return weights
+
 
 def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
     N = 9
-    features, offsets = deformable_subnet(x, flg, regular)
-    samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
+    h_max = x.shape.as_list()[1]
+    w_max = x.shape.as_list()[2]
+    # depth pyramid
+    depth_pyramid = [x]
+    depth_residual_scale = [0.3, 0.2, 0.2, 0.1, 0.1, 0.1]
+    depth_residual = None
+    for i in range(5):
+        depth_pyramid.append(
+            tf.layers.average_pooling2d(
+                inputs=depth_pyramid[-1],
+                pool_size=[2, 2],
+                strides=2,
+                name='deformable_kpn_modify_1_' + 'depth_pyramid' + str(i)
+            )
+        )
+
+    features, offset_pyramid, weight_pyramid = deformable_subnet(x, flg, regular)
+
+    for i in range(len(offset_pyramid)):
+        current_depth = depth_pyramid[len(offset_pyramid) - 1 - i]
+        current_offset = offset_pyramid[i]
+        current_weight = weight_pyramid[i]
+        current_samples, current_coords_h_pos, current_coords_w_pos = bilinear_interpolation(current_depth, current_offset, N, batch_size, deformable_range)
+        current_samples = dof_subnet(current_samples, flg, regular)
+
+        current_depth_residual = current_samples * current_weight
+        current_depth_residual = tf.reduce_sum(current_depth_residual, axis=-1, keep_dims=True)
+
+        current_depth_residual = tf.image.resize_images(current_depth_residual, [h_max, w_max])
+
+        depth_residual += current_depth_residual * depth_residual_scale[i]
+
+    # samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x, offsets, N, batch_size, deformable_range)
 
     # dof_sample = dof_computer(dist=x, samples=samples, batch_size=batch_size, z_multiplier=z_multiplier, coords_h_pos=coords_h_pos, coords_w_pos=coords_w_pos)
 
-    samples = dof_subnet(samples, flg, regular)
+    # samples = dof_subnet(samples, flg, regular)
 
     # inputs = tf.concat([x, features, samples], axis=-1)  ### concat x, samples and features, the performance degrade
-    inputs = features
+    # inputs = features
+    #
+    # weights = weight_subnet(inputs, flg, regular)
+    # weights = weights - tf.reduce_mean(weights)
+    # depth_output = weights * samples
+    # depth_output = tf.reduce_sum(depth_output, axis=-1, keep_dims=True)
+    depth_output = x + depth_residual
 
-    weights = weight_subnet(inputs, flg, regular)
-    weights = weights - tf.reduce_mean(weights)
-    depth_output = weights * samples
-    depth_output = tf.reduce_sum(depth_output, axis=-1, keep_dims=True)
-    depth_output = x + depth_output
-
-    return depth_output, offsets
+    return depth_output, current_offset
