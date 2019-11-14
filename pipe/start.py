@@ -48,6 +48,7 @@ def tof_net_func(features, labels, mode, params):
     z_multiplier = None
     loss_msk = None
     loss_mask_dict = {}
+    depth_residual_scale = [0.3, 0.2, 0.2, 0.1, 0.1, 0.1]
 
     if params['training_set'] == 'FLAT_reflection_s5' or params['training_set'] == 'FLAT_full_s5':
         if params['output_flg'] == True:
@@ -107,7 +108,7 @@ def tof_net_func(features, labels, mode, params):
             depth_outs = get_network(name=params['model_name'], x=depth_kinect, flg=mode == tf.estimator.ModeKeys.TRAIN,
                                      regular=0.1, batch_size=params['batch_size'], range=params['deformable_range'])
 
-        depth_msk = depth_outs > 1e-4
+        depth_msk = depth_outs[-1] > 1e-4
         depth_msk = tf.cast(depth_msk, tf.float32)
 
     ## get the msk needed in compute loss and metrics
@@ -130,7 +131,11 @@ def tof_net_func(features, labels, mode, params):
             loss = 0.9 * loss_raw + 0.1 * loss_depth
             loss = tf.identity(loss, name="loss")
         else:
-            loss = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
+            loss_list = []
+            for i in range(len(depth_residual_scale)):
+                loss_list.append(depth_residual_scale[i] * get_supervised_loss(params['loss_fn'], depth_outs[i], gt, loss_msk))
+            loss = tf.reduce_sum(loss_list)
+            depth_outs = depth_outs[-1]
         # configure the training op (for TRAIN mode)
         if mode == tf.estimator.ModeKeys.TRAIN:
             tf.summary.scalar('training_loss', loss)
@@ -160,7 +165,7 @@ def tof_net_func(features, labels, mode, params):
             tf.summary.image('depth_kinect_error', colorize_img(depth_kinect_error, vmin=0.0, vmax=0.2, cmap='jet'))
 
             ## get metrics
-            ori_mae, pre_mae = get_metrics_mae(depth_outs, depth_kinect, gt, loss_msk)
+            ori_mae, pre_mae = get_metrics_mae(depth_outs[-1], depth_kinect, gt, loss_msk)
             metrics = {
                 "ori_MAE": ori_mae,
                 "pre_MAE": pre_mae,
