@@ -11,8 +11,8 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
-def dof_subnet(inputs, flg, regular):
-    pref = 'dof_subnet_'
+def dof_subnet(inputs, flg, regular, subnet_num):
+    pref = 'dof_subnet_' + str(subnet_num) + '_'
     # whether to train flag
     train_ae = flg
     current_input = inputs
@@ -82,8 +82,8 @@ def dof_subnet(inputs, flg, regular):
     dof_output = tf.identity(current_input, name='dof_output')
     return dof_output
 
-def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
-    pref = 'weight_subnet_'
+def weight_subnet(inputs, flg, regular, subnet_num):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
+    pref = 'weight_subnet_' + str(subnet_num) + '_'
 
     # whether to train flag
     train_ae = flg
@@ -154,8 +154,8 @@ def weight_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), s
     weights = tf.identity(current_input, name='wt_output')
     return weights
 
-def offset_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
-    pref = 'offset_subnet_'
+def offset_subnet(inputs, flg, regular, subnet_num):  ## x (B,H,W,1), features:(B,H,W,64), samples:(B,H,W,9)
+    pref = 'offset_subnet_' + str(subnet_num) + '_'
 
     # whether to train flag
     train_ae = flg
@@ -405,17 +405,19 @@ def deformable_subnet(x, flg, regular):
             current_input = tf.concat([current_input, pool[i]], axis=-1)
         upsamp.append(current_input)
 
-        if (skips[i] == False and skips[i + 1] == True) or (i == 0):
-            current_offset = offset_subnet(upsamp[-1], flg=train_ae, regular=regular)
-            current_weight = weight_subnet(upsamp[-1], flg=train_ae, regular=regular)
-            offset_pyramid.append(current_offset)
-            weight_pyramid.append(current_weight)
+        if (i == (len(n_filters) - 1) - 1) or (i == 0) or (skips[i] == False and skips[i - 1] == True):
+            if i == (len(n_filters) - 1) - 1:
+                offset_pyramid.append(offset_subnet(pool[-1], flg=train_ae, regular=regular, subnet_num=i + 1))
+                weight_pyramid.append(weight_subnet(pool[-1], flg=train_ae, regular=regular, subnet_num=i + 1))
+            else:
+                offset_pyramid.append(offset_subnet(upsamp[-1], flg=train_ae, regular=regular, subnet_num=i))
+                weight_pyramid.append(weight_subnet(upsamp[-1], flg=train_ae, regular=regular, subnet_num=i))
 
     ####################################################################################################################
     features = tf.identity(upsamp[-1], name='ae_output')
-    offset_pyramid_output = tf.identity(offset_pyramid, name='offset_pyramid_output')
-    weight_pyramid_output = tf.identity(weight_pyramid, name='weight_pyramid_output')
-    return features, offset_pyramid_output, weight_pyramid_output
+    # offset_pyramid_output = tf.identity(offset_pyramid, name='offset_pyramid_output')
+    # weight_pyramid_output = tf.identity(weight_pyramid, name='weight_pyramid_output')
+    return features, offset_pyramid, weight_pyramid
 
 def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
     N = 9
@@ -423,12 +425,13 @@ def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
     w_max = x.shape.as_list()[2]
     # depth pyramid
     depth_pyramid = []
+    depth_residual_pyramid = []
     depth_residual_scale = [0.3, 0.2, 0.2, 0.1, 0.1, 0.1]
     scale_num = len(depth_residual_scale)
-    depth_residual = None
+
     for i in range(5, -1, -1):
         depth_pyramid.append(
-            tf.image.resize_images(x, [h_max / (2**i), w_max / (2**i)])
+            tf.image.resize_images(x, [tf.cast(h_max / 2**i, dtype=tf.int32), tf.cast(w_max / 2**i, dtype=tf.int32)])
         )
 
     features, offset_pyramid, weight_pyramid = deformable_subnet(x, flg, regular)
@@ -438,15 +441,17 @@ def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
         current_offset = offset_pyramid[i]
         current_weight = weight_pyramid[i]
         current_samples, current_coords_h_pos, current_coords_w_pos = bilinear_interpolation(current_depth, current_offset, N, batch_size, deformable_range)
-        current_samples = dof_subnet(current_samples, flg, regular)
+        current_samples = dof_subnet(current_samples, flg, regular, subnet_num=i)
 
         current_depth_residual = current_samples * current_weight
         current_depth_residual = tf.reduce_sum(current_depth_residual, axis=-1, keep_dims=True)
 
         current_depth_residual = tf.image.resize_images(current_depth_residual, [h_max, w_max])
 
-        depth_residual += current_depth_residual * depth_residual_scale[i]
+        depth_residual_pyramid.append(current_depth_residual * depth_residual_scale[i])
 
+    depth_residual = tf.concat(depth_residual_pyramid, axis=-1)
+    depth_residual = tf.reduce_sum(depth_residual, axis=-1, keep_dims=True)
     depth_output = x + depth_residual
 
     return depth_output, current_offset
