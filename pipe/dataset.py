@@ -303,6 +303,52 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     output = output * mask_inside
     return output, coords_h_pos, coords_w_pos
 
+def im2col(input, kernel_size = 3, batch_size = 1):
+
+    h_pos_list = []
+    w_pos_list = []
+
+    h_max = input.shape.as_list()[1]
+    w_max = input.shape.as_list()[2]
+
+    padding_size = tf.cast((kernel_size - 1) / 2, dtype=tf.int32)
+
+    input_padding = tf.pad(input, paddings=[[0,0],[padding_size,padding_size],[padding_size,padding_size],[0,0]])
+    w_pos, h_pos = tf.meshgrid(list(range(1, w_max + 1)), list(range(1, h_max + 1)))
+    w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
+    h_pos = tf.expand_dims(tf.expand_dims(h_pos, 0), -1)
+    w_pos = tf.cast(w_pos, dtype=tf.float32)
+    h_pos = tf.cast(h_pos, dtype=tf.float32)
+
+    for i in range(0-padding_size, padding_size + 1, 1):
+        for j in range(0-padding_size, padding_size + 1, 1):
+            h_pos = h_pos + tf.cast(i, dtype=tf.float32)
+            w_pos = w_pos + tf.cast(j, dtype=tf.float32)
+            h_pos_list.append(h_pos)
+            w_pos_list.append(w_pos)
+
+    h_pos = tf.concat(h_pos_list, axis=-1)
+    w_pos = tf.concat(w_pos_list, axis=-1)
+
+    tensor_batch = list(range(batch_size))
+    tensor_batch = tf.convert_to_tensor(tensor_batch)
+    tensor_batch = tf.reshape(tensor_batch, [batch_size, 1, 1, 1])
+    tensor_batch = tf.tile(tensor_batch, multiples=[1, h_max, w_max, kernel_size ** 2])
+    tensor_batch = tf.cast(tensor_batch, dtype=tf.float32)
+
+    tensor_channel = tf.zeros(shape=[kernel_size ** 2], dtype=tf.float32)
+    tensor_channel = tf.reshape(tensor_channel, [1, 1, 1, kernel_size ** 2])
+    tensor_channel = tf.tile(tensor_channel, multiples=[batch_size, h_max, w_max, kernel_size ** 2])
+    tensor_channel = tf.cast(tensor_channel, dtype=tf.float32)
+
+    idx = tf.stack([tensor_batch, h_pos, w_pos, tensor_channel], axis=-1)
+
+    idx = tf.reshape(idx, [-1, 4])
+
+    im = tf.gather_nd(input_padding, tf.cast(idx, dtype=tf.int32))
+
+    output = tf.reshape(im, [batch_size, h_max, w_max, kernel_size ** 2])
+    return output
 """
 ###
 This function has been temporarily deleted
@@ -319,6 +365,8 @@ def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w
     dof_samples = dof_samp_cur + samples + dist
     return dof_samples
 """
+
+
 
 ALL_INPUT_FN = {
     'FLAT_reflection_s5': imgs_input_fn,
