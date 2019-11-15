@@ -186,6 +186,69 @@ def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=
 
     return batch_features, batch_labels
 
+def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
+    def _parse_function(serialized, height=height, width=width):
+        features = \
+            {
+                'noisy': tf.FixedLenFeature([], tf.string),
+                'intensity': tf.FixedLenFeature([], tf.string),
+                'rgb': tf.FixedLenFeature([], tf.string),
+                'gt': tf.FixedLenFeature([], tf.string)
+            }
+
+        parsed_example = tf.parse_single_example(serialized=serialized, features=features)
+
+        noisy_shape = tf.stack([height, width, 1])
+        intensity_shape = tf.stack([height , width , 1])
+        rgb_shape = tf.stack([height, width, 3])
+        gt_shape = tf.stack([height, width, 1])
+
+        noisy_raw = parsed_example['noisy']
+        intensity_raw = parsed_example['intensity']
+        rgb_raw = parsed_example['rgb']
+        gt_raw = parsed_example['gt']
+
+        # decode the raw bytes so it becomes a tensor with type
+
+        noisy = tf.decode_raw(noisy_raw, tf.float32)
+        noisy = tf.cast(noisy, tf.float32)
+        noisy = tf.reshape(noisy, noisy_shape)
+
+        intensity = tf.decode_raw(intensity_raw, tf.float32)
+        intensity = tf.cast(intensity, tf.float32)
+        intensity = tf.reshape(intensity, intensity_shape)
+
+        rgb = tf.decode_raw(rgb_raw, tf.float32)
+        rgb = tf.cast(rgb, tf.float32)
+        rgb = tf.reshape(rgb, rgb_shape)
+
+        gt = tf.decode_raw(gt_raw, tf.float32)
+        gt = tf.cast(gt, tf.float32)
+        gt = tf.reshape(gt, gt_shape)
+
+        features = {'noisy': noisy, 'intensity': intensity, 'rgb': rgb}
+        labels = {'gt': gt}
+
+        return features, labels
+
+    dataset = tf.data.TFRecordDataset(filenames=filenames)
+    # Parse the serialised data to TFRecords files.
+    # returns Tensorflow tensors for the image and labels.
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.map(
+        lambda features, labels: preprocessing_deeptof(features, labels)
+    )
+
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=256)
+
+    dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    batch_dataset = dataset.batch(batch_size)  # Batch Size
+    iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+
+    return batch_features, batch_labels
+
 def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     """
     This function used to sample from depth map, a simple tf version of bilinear interpolation function.
@@ -338,7 +401,7 @@ def im2col(input, kernel_size = 3, batch_size = 1):
 
     tensor_channel = tf.zeros(shape=[kernel_size ** 2], dtype=tf.float32)
     tensor_channel = tf.reshape(tensor_channel, [1, 1, 1, kernel_size ** 2])
-    tensor_channel = tf.tile(tensor_channel, multiples=[batch_size, h_max, w_max, kernel_size ** 2])
+    tensor_channel = tf.tile(tensor_channel, multiples=[batch_size, h_max, w_max, 1])
     tensor_channel = tf.cast(tensor_channel, dtype=tf.float32)
 
     idx = tf.stack([tensor_batch, h_pos, w_pos, tensor_channel], axis=-1)
@@ -371,7 +434,8 @@ def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w
 ALL_INPUT_FN = {
     'FLAT_reflection_s5': imgs_input_fn,
     'FLAT_full_s5': imgs_input_fn,
-    'deeptof_reflection': imgs_input_fn_deeptof
+    'deeptof_reflection': imgs_input_fn_deeptof,
+    'tof_FT3': imgs_input_fn_FT3
 }
 
 def get_input_fn(training_set, filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
