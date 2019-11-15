@@ -75,6 +75,18 @@ def preprocessing_deeptof(features, labels):
     """
     return features, labels
 
+def preprocessing_tof_FT3(features, labels):
+    """
+    not konw some preprocess pipeline needed to use
+    :param features:
+    :param labels:
+    :return:
+    """
+    rgb = features['rgb']
+    rgb_p = rgb - tf.reduce_mean(rgb, axis=[1,2,3], keep_dims=True)
+    features['rgb'] = rgb_p
+    return features, labels
+
 def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     def _parse_function(serialized, height=height, width=width):
         features = \
@@ -236,7 +248,7 @@ def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, b
     # returns Tensorflow tensors for the image and labels.
     dataset = dataset.map(_parse_function)
     dataset = dataset.map(
-        lambda features, labels: preprocessing_deeptof(features, labels)
+        lambda features, labels: preprocessing_tof_FT3(features, labels)
     )
 
     if shuffle:
