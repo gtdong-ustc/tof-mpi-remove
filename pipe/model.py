@@ -7,6 +7,8 @@ from deformable_kpn_raw import deformable_kpn_raw
 from kpn import kpn
 from kpn_raw import kpn_raw
 from deeptof import deeptof
+from dear_unet import dear_unet
+from dear_kpn import dear_kpn
 
 
 NETWORK_NAME = {
@@ -16,6 +18,8 @@ NETWORK_NAME = {
     'kpn': kpn,
     'kpn_raw': kpn_raw,
     'deeptof': deeptof,
+    'dear_unet': dear_unet,
+    'dear_kpn': dear_kpn,
 }
 
 ALL_NETWORKS = dict(NETWORK_NAME)
