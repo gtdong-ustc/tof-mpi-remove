@@ -7,8 +7,9 @@ from deformable_kpn_raw import deformable_kpn_raw
 from kpn import kpn
 from kpn_raw import kpn_raw
 from deeptof import deeptof
-from dear_unet import dear_unet
 from dear_kpn import dear_kpn
+from dear_unet import dear_unet
+
 
 
 NETWORK_NAME = {
