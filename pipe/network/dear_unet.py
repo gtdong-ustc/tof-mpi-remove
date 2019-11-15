@@ -11,7 +11,7 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
-def unet_subnet_subnet(x, flg, regular):
+def unet_subnet(x, flg, regular):
     """Build a U-Net architecture"""
 
     """ Args: x is the input, 4-D tensor (BxHxWxC)
@@ -251,7 +251,7 @@ def depth_output_subnet(inputs, flg, regular):  ## x (B,H,W,1), features:(B,H,W,
 
 def dear_unet(x, flg, regular, batch_size, deformable_range):
 
-    features = dear_unet(x, flg, regular)
+    features = unet_subnet(x, flg, regular)
 
     depth_output = depth_output_subnet(features, flg, regular)
 

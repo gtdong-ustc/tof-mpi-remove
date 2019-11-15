@@ -11,7 +11,7 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
-def unet_subnet_subnet(x, flg, regular):
+def unet_subnet(x, flg, regular):
     """Build a U-Net architecture"""
 
     """ Args: x is the input, 4-D tensor (BxHxWxC)
@@ -246,6 +246,8 @@ def depth_output_subnet(inputs, flg, regular, batch_size, kernel_size):  ## x (B
         )
         current_input = mix[-1]
 
+    ## run y = w(x + b)
+
     biases = current_input[:, :, :, 0::0-kernel_size**2]
     weights = current_input[:, :, :, 0-kernel_size**2::]
 
@@ -257,11 +259,11 @@ def depth_output_subnet(inputs, flg, regular, batch_size, kernel_size):  ## x (B
     depth_output = tf.identity(current_output, name='depth_output')
     return depth_output
 
-def dear_unet(x, flg, regular, batch_size, deformable_range):
+def dear_kpn(x, flg, regular, batch_size, deformable_range):
 
     kernel_size = 3
 
-    features = dear_unet(x, flg, regular)
+    features = unet_subnet(x, flg, regular)
 
     depth_output = depth_output_subnet(features, flg, regular, batch_size, kernel_size=kernel_size)
 
