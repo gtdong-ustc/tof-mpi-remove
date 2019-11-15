@@ -222,24 +222,26 @@ def cos_similarity(x,y,normalize=False):
 	return tf.reduce_sum(x*y)
 
 def sobel_edges(img):
-    ch = img.get_shape().as_list()[3]
-    kerx = tf.constant([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype='float32')
-    kery = tf.constant([[-1, -2, 1], [0, 0, 0], [1, 2, 1]], dtype='float32')
-    kerx = tf.expand_dims(kerx, 2)
-    kerx = tf.expand_dims(kerx, 3)
-    kerx = tf.tile(kerx, [1, 1, ch, 1])
-    kery = tf.expand_dims(kery, 2)
-    kery = tf.expand_dims(kery, 3)
-    kery = tf.tile(kery, [1, 1, ch, 1])
-    gx = tf.nn.depthwise_conv2d_native(img, kerx, strides=[1,1,1,1], padding="VALID")
-    gy = tf.nn.depthwise_conv2d_native(img, kery, strides=[1,1,1,1], padding="VALID")
-    return tf.concat([gx, gy], 3)
+    # channel = img.get_shape().as_list()[-1]
+    # kerx = tf.constant([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype='float32')
+    # kery = tf.constant([[-1, -2, 1], [0, 0, 0], [1, 2, 1]], dtype='float32')
+    # kerx = tf.expand_dims(kerx, 2)
+    # kerx = tf.expand_dims(kerx, 3)
+    # kerx = tf.tile(kerx, [1, 1, channel, 1])
+    # kery = tf.expand_dims(kery, 2)
+    # kery = tf.expand_dims(kery, 3)
+    # kery = tf.tile(kery, [1, 1, channel, 1])
+    # gx = tf.nn.depthwise_conv2d_native(img, kerx, strides=[1,1,1,1], padding="VALID")
+    # return tf.concat([gx, gy], 3)
+    return tf.squeeze(tf.image.sobel_edges(img))
 
 
-def sobel_gradient_loss(x, y):
+def sobel_gradient_loss(x, y, mask=None):
+    if mask is None:
+        mask = tf.ones_like(x, dtype=tf.float32)
     g1 = sobel_edges(x)
     g2 = sobel_edges(y)
-    return tf.reduce_mean(tf.pow(tf.abs(g1 - g2),1))
+    return tf.reduce_sum(mask * tf.pow(tf.reduce_sum(tf.abs(g1 - g2), axis=-1, keep_dims=True),1)) / tf.reduce_sum(mask)
 
 
 SUPERVISED_LOSS = {
