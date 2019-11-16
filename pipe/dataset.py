@@ -382,7 +382,7 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     output = output * mask_inside
     return output, coords_h_pos, coords_w_pos
 
-def im2col(input, kernel_size = 3, batch_size_input = 1):
+def im2col(input, kernel_size = 3):
 
     h_pos_list = []
     w_pos_list = []
