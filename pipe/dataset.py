@@ -17,6 +17,28 @@ PI = 3.14159265358979323846
 flg = False
 dtype = tf.float32
 
+def plane_correction(fov, h_max, w_max, fov_flag=True):
+
+    w_pos, h_pos = tf.meshgrid(list(range(w_max)), list(range(h_max)))
+
+    w_pos = tf.expand_dims(w_pos, -1)
+    h_pos = tf.expand_dims(h_pos, -1)
+    w_pos = tf.cast(w_pos, dtype=tf.float32)
+    h_pos = tf.cast(h_pos, dtype=tf.float32)
+    if fov_flag:
+        fov_pi = 63.5 * PI / 180.0
+        flen_h = (h_pos / 2.0) / tf.tan(fov_pi / 2.0)
+        flen_w = (w_pos / 2.0) / tf.tan(fov_pi / 2.0)
+    else:
+        flen_h = fov
+        flen_w = fov
+
+    h = (w_pos - w_max / 2.) / flen_w
+    w = (h_pos - h_max / 2.) / flen_h
+    norm = 1. / tf.sqrt(h ** 2 + w ** 2 + 1.)
+
+    return norm
+
 def colorize_img(value, vmin=None, vmax=None, cmap=None):
     """
     A utility function for TensorFlow that maps a grayscale image to a matplotlib colormap for use with TensorBoard image summaries.
@@ -82,13 +104,30 @@ def preprocessing_tof_FT3(features, labels):
     :param labels:
     :return:
     """
-    rgb_list = []
+
     rgb = features['rgb']
+    noise = features['noise']
+    intensity = features['intensity']
+    gt = features['gt']
+    h_max = gt.shape.as_list()[1]
+    w_max = gt.shape.as_list()[2]
+    #rgb
+    rgb_list = []
+    rgb = rgb / 255.0
     for i in range(3):
         rgb_list.append(rgb[:,:,i] - tf.reduce_mean(rgb[:,:,i]))
 
     rgb_p = tf.stack(rgb_list, axis=-1)
     features['rgb'] = rgb_p
+    #intensity
+    intensity_p = intensity / 255.0
+    features['intensity'] = intensity_p
+    #noise
+    noise_p = noise * plane_correction(fov=63.5, h_max=h_max, w_max=w_max) / 4095.0
+    features['noise'] = noise_p
+    #gt
+    gt_p = gt * plane_correction(fov=63.5, h_max=h_max, w_max=w_max) / 4095.0
+    features['gt'] = gt_p
     return features, labels
 
 def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
