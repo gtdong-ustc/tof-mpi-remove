@@ -82,8 +82,12 @@ def preprocessing_tof_FT3(features, labels):
     :param labels:
     :return:
     """
+    rgb_list = []
     rgb = features['rgb']
-    rgb_p = rgb - tf.reduce_mean(rgb, axis=[1,2,3], keep_dims=True)
+    for i in range(3):
+        rgb_list.append(rgb[:,:,i] - tf.reduce_mean(rgb[:,:,i]))
+
+    rgb_p = tf.stack(rgb_list, axis=-1)
     features['rgb'] = rgb_p
     return features, labels
 
@@ -378,16 +382,16 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     output = output * mask_inside
     return output, coords_h_pos, coords_w_pos
 
-def im2col(input, kernel_size = 3, batch_size = 1):
+def im2col(input, kernel_size = 3, batch_size_input = 1):
 
     h_pos_list = []
     w_pos_list = []
 
     h_max = input.shape.as_list()[1]
     w_max = input.shape.as_list()[2]
+    batch_size = tf.shape(input)[0]
 
-    padding_size = tf.cast((kernel_size - 1) / 2, dtype=tf.int32)
-
+    padding_size = int((kernel_size - 1) / 2)
     input_padding = tf.pad(input, paddings=[[0,0],[padding_size,padding_size],[padding_size,padding_size],[0,0]])
     w_pos, h_pos = tf.meshgrid(list(range(1, w_max + 1)), list(range(1, h_max + 1)))
     w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
@@ -404,9 +408,12 @@ def im2col(input, kernel_size = 3, batch_size = 1):
 
     h_pos = tf.concat(h_pos_list, axis=-1)
     w_pos = tf.concat(w_pos_list, axis=-1)
+    h_pos = tf.tile(h_pos, multiples=[batch_size, 1, 1, 1])
+    w_pos = tf.tile(w_pos, multiples=[batch_size, 1, 1, 1])
 
-    tensor_batch = list(range(batch_size))
-    tensor_batch = tf.convert_to_tensor(tensor_batch)
+    # tensor_batch = list(range(batch_size))
+    # tensor_batch = tf.convert_to_tensor(tensor_batch)
+    tensor_batch = tf.range(batch_size)
     tensor_batch = tf.reshape(tensor_batch, [batch_size, 1, 1, 1])
     tensor_batch = tf.tile(tensor_batch, multiples=[1, h_max, w_max, kernel_size ** 2])
     tensor_batch = tf.cast(tensor_batch, dtype=tf.float32)
