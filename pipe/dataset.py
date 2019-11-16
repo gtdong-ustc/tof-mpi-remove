@@ -265,7 +265,7 @@ def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, b
 
     return batch_features, batch_labels
 
-def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
+def bilinear_interpolation(input, offsets, N, deformable_range):
     """
     This function used to sample from depth map, a simple tf version of bilinear interpolation function.
     :param input:
@@ -279,6 +279,7 @@ def bilinear_interpolation(input, offsets, N, batch_size, deformable_range):
     h_max_idx = input.shape.as_list()[1]
     w_max_idx = input.shape.as_list()[2]
     offsets_size = tf.shape(offsets)
+    batch_size = tf.shape(input)[0]
 
     h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], 2, N]
 

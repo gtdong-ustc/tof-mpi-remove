@@ -440,7 +440,7 @@ def deformable_kpn_modify_1(x, flg, regular, batch_size, deformable_range):
         current_depth = depth_pyramid[i]
         current_offset = offset_pyramid[i]
         current_weight = weight_pyramid[i]
-        current_samples, current_coords_h_pos, current_coords_w_pos = bilinear_interpolation(current_depth, current_offset, N, batch_size, deformable_range)
+        current_samples, current_coords_h_pos, current_coords_w_pos = bilinear_interpolation(current_depth, current_offset, N, deformable_range)
         current_samples = dof_subnet(current_samples, flg, regular, subnet_num=i)
 
         current_depth_residual = current_samples * current_weight

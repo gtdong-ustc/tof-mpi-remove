@@ -334,7 +334,7 @@ def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
     """
 
     N = 9
-    batch_size = batch_size
+    batch_size_input = tf.shape(x)[0]
     x_list = tf.split(x, N, axis=-1)
     h_max = x.shape.as_list()[1]
     w_max = x.shape.as_list()[2]
@@ -342,13 +342,13 @@ def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
     coords_h_pos_set = []
     coords_w_pos_set = []
     features, offsets = doformable_subnet_raw(x, flg, regular)
-    offsets = tf.reshape(offsets, shape=[batch_size, h_max, w_max, 3, 2 * N])
+    offsets = tf.reshape(offsets, shape=[batch_size_input, h_max, w_max, 3, 2 * N])
 
     for i in range(3):
         offsets_temp = offsets[:, :, :, i, :]
         # print(offsets_temp)
         for j in range(3):
-            samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x_list[i * 3 + j], offsets_temp, N, batch_size,
+            samples, coords_h_pos, coords_w_pos = bilinear_interpolation(x_list[i * 3 + j], offsets_temp, N,
                                                                          deformable_range)
             samples_set.append(samples)
             coords_h_pos_set.append(coords_h_pos)
@@ -356,7 +356,7 @@ def deformable_kpn_raw(x, flg, regular, batch_size, deformable_range):
     samples = tf.concat(samples_set, axis=-1)
     inputs = tf.concat([x, features, samples], axis=-1)
     weights = weight_subnet_raw(inputs, flg, regular)
-    output = tf.reshape(samples * weights, shape=[batch_size, h_max, w_max, 9, 9])
+    output = tf.reshape(samples * weights, shape=[batch_size_input, h_max, w_max, 9, 9])
     output = tf.reduce_sum(output, axis=-1)
     output = x + output
     return output, offsets
