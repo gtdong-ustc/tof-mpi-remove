@@ -252,7 +252,8 @@ def depth_output_subnet(inputs, flg, regular, batch_size, kernel_size):  ## x (B
     weights = current_input[:, :, :, 0-kernel_size**2::]
 
     weights = weights / tf.reduce_sum(tf.abs(weights) + 1e-6, axis=-1, keep_dims=True)
-    column = tf.extract_image_patches(inputs + biases , [1, kernel_size, kernel_size, 1], [1, 1, 1, 1], [1, 1, 1, 1], "SAME")
+    column = im2col(inputs + biases , kernel_size = kernel_size)
+    # column = tf.extract_image_patches(inputs + biases , [1, kernel_size, kernel_size, 1], [1, 1, 1, 1], [1, 1, 1, 1], "SAME")
 
     current_output = tf.reduce_sum(column * weights, axis=-1, keep_dims=True)
 
