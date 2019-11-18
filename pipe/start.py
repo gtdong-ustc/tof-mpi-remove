@@ -48,7 +48,7 @@ def tof_net_func(features, labels, mode, params):
     z_multiplier = None
     loss_msk = None
     loss_mask_dict = {}
-    depth_residual_scale = [0.3, 0.2, 0.2, 0.1, 0.1, 0.1]
+    depth_residual_scale = [0, 0, 0, 0, 0, 1.0]
 
     if params['training_set'] == 'FLAT_reflection_s5' or params['training_set'] == 'FLAT_full_s5':
         if params['output_flg'] == True:
@@ -82,6 +82,24 @@ def tof_net_func(features, labels, mode, params):
         depth_kinect_msk = depth_kinect > 1e-4
         depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
 
+    elif params['training_set'] == 'tof_FT3':
+        if params['output_flg'] == True:
+            gt = None
+        else:
+            gt = labels['gt']
+            gt_msk = gt > 1e-4
+            gt_msk = tf.cast(gt_msk, tf.float32)
+
+            ### add gt msk
+            loss_mask_dict['gt_msk'] = gt_msk
+        full = features['noisy']
+        intensity = features['intensity']
+        rgb = features['rgb']
+
+        depth_kinect = full
+        depth_kinect_msk = depth_kinect > 1e-4
+        depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
+
     ### add kinect_msk
     loss_mask_dict['depth_kinect_msk'] = depth_kinect_msk
 
@@ -100,19 +118,27 @@ def tof_net_func(features, labels, mode, params):
         depth_msk = tf.expand_dims(depth_msk, axis=-1)
     else:
         if model_name_list[0] == 'deformable':
-            depth_outs, offsets = get_network(name=params['model_name'], x=depth_kinect,
+            if params['training_set'] == 'tof_FT3':
+                inputs = tf.concat([depth_kinect, intensity, rgb], axis=-1)
+            else:
+                inputs = depth_kinect
+            depth_outs, offsets = get_network(name=params['model_name'], x=inputs,
                                               flg=mode == tf.estimator.ModeKeys.TRAIN, regular=0.1,
                                               batch_size=params['batch_size'], range=params['deformable_range'])
 
         else:
-            depth_outs = get_network(name=params['model_name'], x=depth_kinect, flg=mode == tf.estimator.ModeKeys.TRAIN,
+            if params['training_set'] == 'tof_FT3':
+                inputs = tf.concat([depth_kinect, intensity, rgb], axis=-1)
+            else:
+                inputs = depth_kinect
+            depth_outs = get_network(name=params['model_name'], x=inputs, flg=mode == tf.estimator.ModeKeys.TRAIN,
                                      regular=0.1, batch_size=params['batch_size'], range=params['deformable_range'])
 
-        depth_msk = depth_outs[-1] > 1e-4
-        depth_msk = tf.cast(depth_msk, tf.float32)
+        # depth_msk = depth_outs[-1] > 1e-4
+        # depth_msk = tf.cast(depth_msk, tf.float32)
 
     ## get the msk needed in compute loss and metrics
-    loss_mask_dict['depth_msk'] = depth_msk
+    # loss_mask_dict['depth_msk'] = depth_msk
     loss_msk = loss_mask_dict[params['loss_mask']]
 
     # compute loss (for TRAIN and EVAL modes)
@@ -131,16 +157,23 @@ def tof_net_func(features, labels, mode, params):
             loss = 0.9 * loss_raw + 0.1 * loss_depth
             loss = tf.identity(loss, name="loss")
         else:
-            loss_list = []
-            for i in range(len(depth_residual_scale)):
-                loss_list.append(depth_residual_scale[i] * get_supervised_loss(params['loss_fn'], depth_outs[i], gt, loss_msk))
-            loss = tf.reduce_sum(loss_list)
-            depth_outs = depth_outs[-1]
+            # loss_list = []
+            # for i in range(len(depth_residual_scale)):
+            #     loss_list.append(depth_residual_scale[i] * get_supervised_loss(params['loss_fn'], depth_outs[i], gt, loss_msk))
+            # loss = tf.reduce_sum(loss_list)
+            # depth_outs = depth_outs[-1]
+            if params['add_gradient'] == 'sobel_gradient':
+                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
+                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
+                loss = loss_1 + 10.0 * loss_2
+            else:
+                loss = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
         # configure the training op (for TRAIN mode)
         if mode == tf.estimator.ModeKeys.TRAIN:
             tf.summary.scalar('training_loss', loss)
-            optimizer = tf.train.AdamOptimizer(learning_rate=params['learning_rate'])
             global_step = tf.train.get_global_step()
+            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step=global_step, decay_steps= 2 * int(params['samples_number'] / params['batch_size']), decay_rate=0.7)
+            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
                 train_op = optimizer.minimize(loss, global_step=global_step)
@@ -158,14 +191,14 @@ def tof_net_func(features, labels, mode, params):
                 depth_outs_error = tf.identity(tf.abs(gt * loss_msk - depth_outs * loss_msk), 'depth_outs_error')
                 depth_kinect_error = tf.identity(tf.abs(gt * loss_msk - depth_kinect * loss_msk), 'depth_kinect_error')
 
-            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.5, vmax=5.0, cmap='jet'))
-            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.5, vmax=5.0, cmap='jet'))
-            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.5, vmax=5.0, cmap='jet'))
-            tf.summary.image('depth_outs_error', colorize_img(depth_outs_error, vmin=0.0, vmax=0.2, cmap='jet'))
-            tf.summary.image('depth_kinect_error', colorize_img(depth_kinect_error, vmin=0.0, vmax=0.2, cmap='jet'))
+            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_outs_error', colorize_img(depth_outs_error, vmin=0.0, vmax=0.1, cmap='jet'))
+            tf.summary.image('depth_kinect_error', colorize_img(depth_kinect_error, vmin=0.0, vmax=0.1, cmap='jet'))
 
             ## get metrics
-            ori_mae, pre_mae = get_metrics_mae(depth_outs[-1], depth_kinect, gt, loss_msk)
+            ori_mae, pre_mae = get_metrics_mae(depth_outs * 409.5, depth_kinect * 409.5, gt * 409.5, loss_msk)
             metrics = {
                 "ori_MAE": ori_mae,
                 "pre_MAE": pre_mae,
@@ -200,7 +233,8 @@ def tof_net_func(features, labels, mode, params):
     )
 
 def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, learning_rate, batch_size, traing_steps,
-                     evaluate_steps, deformable_range, model_name, checkpoint_steps, loss_mask, gpu_Number, training_set, image_shape):
+                     evaluate_steps, deformable_range, model_name, checkpoint_steps, loss_mask, gpu_Number,
+                     training_set, image_shape, samples_number, add_gradient):
     """
     This function represents the training mode of the code
     :param train_data_path:
@@ -224,16 +258,17 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
         keep_checkpoint_max=10,
-        save_checkpoints_steps=200,
+        save_checkpoints_steps=evaluate_steps,
         session_config=session_config,
-        save_summary_steps=100,
-        log_step_count_steps=5
+        save_summary_steps=50,
+        log_step_count_steps=20
     )  # set the frequency of logging steps for loss function
 
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
                                      params={'learning_rate': learning_rate, 'batch_size': batch_size, 'model_dir': model_dir,
                                              'loss_fn': loss_fn, 'deformable_range': deformable_range, 'model_name': model_name,
-                                             'loss_mask': loss_mask, 'output_flg':False, 'training_set': training_set})
+                                             'loss_mask': loss_mask, 'output_flg':False, 'training_set': training_set,
+                                             'samples_number': samples_number, 'add_gradient': add_gradient})
 
 
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: get_input_fn(training_set=training_set, filenames=train_data_path, height=image_shape[0], width=image_shape[1],
@@ -245,7 +280,7 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     tf.estimator.train_and_evaluate(tof_net, train_spec, eval_spec)
 
 def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps, deformable_range,
-                    loss_fn, model_name, loss_mask, gpu_Number, training_set, image_shape):
+                    loss_fn, model_name, loss_mask, gpu_Number, training_set, image_shape, add_gradient):
     """
     This function represents the eval mode of the code
     :param evaluate_data_path:
@@ -270,7 +305,7 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
         save_summary_steps = 5,)
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
-                'deformable_range': deformable_range, 'loss_fn':loss_fn,
+                'deformable_range': deformable_range, 'loss_fn':loss_fn,'add_gradient':add_gradient,
                 'model_name': model_name, 'loss_mask': loss_mask, 'output_flg':False, 'training_set': training_set})
     tof_net.evaluate(input_fn=lambda: get_input_fn(training_set=training_set, filenames=evaluate_data_path, height=image_shape[0], width=image_shape[1],
         shuffle=False, repeat_count=1, batch_size=batch_size), checkpoint_path=model_dir + '/model.ckpt-' + checkpoint_steps)
@@ -333,6 +368,8 @@ if __name__ == '__main__':
     parser.add_argument("-c", '--checkpointSteps', help="select the checkpoint of the model", default="800", type=str)
     parser.add_argument("-k", '--lossMask', help="the mask used in compute loss", default='gt_msk', type=str)
     parser.add_argument("-g", '--gpuNumber', help="The number of GPU used in training", default=2, type=int)
+    parser.add_argument('--samplesNumber', help="samples number in one epoch", default=5800, type=int)
+    parser.add_argument('--addGradient', help="add the gradient loss function", default='sobel_gradient', type=str)
     args = parser.parse_args()
 
     dataset_dir = '/userhome/dataset/tfrecords'
@@ -365,13 +402,21 @@ if __name__ == '__main__':
                          model_dir=model_dir, learning_rate=args.lr, batch_size=args.batchSize, traing_steps=args.steps,
                          evaluate_steps=args.evalSteps, deformable_range = args.deformableRange, model_name=args.modelName,
                          checkpoint_steps=args.checkpointSteps, loss_mask = args.lossMask, gpu_Number = args.gpuNumber,
-                         training_set = args.trainingSet, image_shape = args.imageShape
-                         )
-    elif args.flagMode == 'eval':
-        dataset_testing(evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,batch_size=args.batchSize,
+                         training_set = args.trainingSet, image_shape = args.imageShape, samples_number = args.samplesNumber,
+                         add_gradient = args.addGradient)
+    elif args.flagMode == 'eval_TD':
+        dataset_testing(evaluate_data_path=train_data_path, model_dir=model_dir, loss_fn=args.lossType,batch_size=args.batchSize,
                         checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange, model_name = args.modelName,
-                        loss_mask = args.lossMask, gpu_Number = args.gpuNumber, training_set = args.trainingSet, image_shape = args.imageShape)
-
+                        loss_mask = args.lossMask, gpu_Number = args.gpuNumber, training_set = args.trainingSet, image_shape = args.imageShape,
+                        add_gradient=args.addGradient)
+    elif args.flagMode == 'eval_ED':
+        dataset_testing(evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,
+                        batch_size=args.batchSize,
+                        checkpoint_steps=args.checkpointSteps, deformable_range=args.deformableRange,
+                        model_name=args.modelName,
+                        loss_mask=args.lossMask, gpu_Number=args.gpuNumber, training_set=args.trainingSet,
+                        image_shape=args.imageShape,
+                        add_gradient=args.addGradient)
     else:
         dataset_output(result_path=output_dir,evaluate_data_path=evaluate_data_path, model_dir=model_dir, loss_fn=args.lossType,
                         batch_size=args.batchSize, checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange,

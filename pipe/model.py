@@ -9,6 +9,7 @@ from kpn_raw import kpn_raw
 from deeptof import deeptof
 from dear_kpn import dear_kpn
 from dear_unet import dear_unet
+from deformable_pyramid_kpn import deformable_pyramid_kpn
 
 
 
@@ -16,6 +17,7 @@ NETWORK_NAME = {
     'deformable_kpn': deformable_kpn,
     'deformable_kpn_modify_1': deformable_kpn_modify_1,
     'deformable_kpn_raw': deformable_kpn_raw,
+    'deformable_pyramid_kpn': deformable_pyramid_kpn,
     'kpn': kpn,
     'kpn_raw': kpn_raw,
     'deeptof': deeptof,
