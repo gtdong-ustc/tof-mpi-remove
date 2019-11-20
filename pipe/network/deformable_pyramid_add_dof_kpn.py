@@ -5,12 +5,6 @@ import tensorflow as tf
 from dataset import *
 from activation import *
 
-tf.logging.set_verbosity(tf.logging.INFO)
-
-PI = 3.14159265358979323846
-flg = False
-dtype = tf.float32
-
 def unet_subnet(x, flg, regular, N, subnet_num):
     """Build a U-Net architecture"""
 
@@ -319,6 +313,78 @@ def offset_subnet(inputs, flg, regular, N, subnet_num):  ## x (B,H,W,1), feature
 
     offsets = tf.identity(current_input, name='offset_output')
     return offsets
+
+def dof_subnet(inputs, flg, regular, subnet_num):
+    pref = 'dof_subnet_' + str(subnet_num) + '_'
+    # whether to train flag
+    train_ae = flg
+    current_input = inputs
+    # define initializer for the network
+    keys = ['conv', 'upsample']
+    keys_avoid = ['OptimizeLoss']
+    inits = []
+
+    init_net = None
+    if init_net != None:
+        for name in init_net.get_variable_names():
+            # select certain variables
+            flag_init = False
+            for key in keys:
+                if key in name:
+                    flag_init = True
+            for key in keys_avoid:
+                if key in name:
+                    flag_init = False
+            if flag_init:
+                name_f = name.replace('/', '_')
+                num = str(init_net.get_variable_value(name).tolist())
+                # self define the initializer function
+                from tensorflow.python.framework import dtypes
+                from tensorflow.python.ops.init_ops import Initializer
+                exec(
+                    "class " + name_f + "(Initializer):\n def __init__(self,dtype=tf.float32): self.dtype=dtype \n def __call__(self,shape,dtype=None,partition_info=None): return tf.cast(np.array(" + num + "),dtype=self.dtype)\n def get_config(self):return {\"dtype\": self.dtype.name}")
+                inits.append(name_f)
+
+    n_filters_mix = [9, 9, 9, 9]
+    filter_sizes_mix = [1, 1, 1, 1]
+    mix = []
+    for i in range(0, len(n_filters_mix)):
+        name = pref + "conv_" + str(i)
+
+        # define the initializer
+        if name + '_bias' in inits:
+            bias_init = eval(name + '_bias()')
+        else:
+            bias_init = tf.zeros_initializer()
+        if name + '_kernel' in inits:
+            kernel_init = eval(name + '_kernel()')
+        else:
+            kernel_init = None
+
+        if i == (len(n_filters_mix) - 1):
+            activation = None
+        else:
+            activation = relu
+
+        # convolution
+        mix.append( \
+            tf.layers.conv2d( \
+                inputs=current_input,
+                filters=n_filters_mix[i],
+                kernel_size=[filter_sizes_mix[i], filter_sizes_mix[i]],
+                padding="same",
+                activation=activation,
+                trainable=train_ae,
+                kernel_initializer=kernel_init,
+                bias_initializer=bias_init,
+                name=name,
+            )
+        )
+        current_input = mix[-1]
+
+    dof_output = tf.identity(current_input, name='wt_output')
+    return dof_outpu
+
 def deformable_kpn_rgb_subnet(x, flg, regular, batch_size, deformable_range, subnet_num):
     N = 9
     features = unet_subnet(x, flg, regular, N, subnet_num=subnet_num)
@@ -326,7 +392,7 @@ def deformable_kpn_rgb_subnet(x, flg, regular, batch_size, deformable_range, sub
     weights = weight_subnet(features, flg, regular, N, subnet_num=subnet_num)
     return offsets, weights
 
-def deformable_kpn_depth_subnet(x, rgb_offsets, rgb_weights, flg, regular, batch_size, deformable_range, subnet_num):
+def deformable_kpn_depth_add_dof_subnet(x, rgb_offsets, rgb_weights, flg, regular, batch_size, deformable_range, subnet_num):
     N = 9
     depth = x[:,:,:,0]
     depth = tf.expand_dims(depth, axis=-1)
@@ -335,6 +401,7 @@ def deformable_kpn_depth_subnet(x, rgb_offsets, rgb_weights, flg, regular, batch
 
     offsets = offsets * rgb_offsets
     samples, coords_h_pos, coords_w_pos = bilinear_interpolation(depth, offsets, N, deformable_range)
+    samples = dof_subnet(samples, flg, regular, subnet_num=subnet_num)
     weights = weight_subnet(features, flg, regular, N, subnet_num=subnet_num)
     weights = weights * rgb_weights
     weights = weights - tf.reduce_mean(weights, axis=-1, keep_dims=True)
@@ -344,13 +411,11 @@ def deformable_kpn_depth_subnet(x, rgb_offsets, rgb_weights, flg, regular, batch
 
     return depth_output, offsets
 
-def deformable_pyramid_kpn(x, flg, regular, batch_size, deformable_range):
+def deformable_pyramid_add_dof_kpn(x, flg, regular, batch_size, deformable_range):
 
     depth_and_amplitude = x[:,:,:,0:2]
     rgb = x[:,:,:,2:4]
 
     rgb_offsets, rgb_weights = deformable_kpn_rgb_subnet(rgb, flg, regular, batch_size, deformable_range, subnet_num=0)
-    depth_output, offsets = deformable_kpn_depth_subnet(depth_and_amplitude, rgb_offsets, rgb_weights, flg, regular, batch_size, deformable_range, subnet_num=1)
+    depth_output, offsets = deformable_kpn_depth_add_dof_subnet(depth_and_amplitude, rgb_offsets, rgb_weights, flg, regular, batch_size, deformable_range, subnet_num=1)
     return depth_output, offsets
-
-
