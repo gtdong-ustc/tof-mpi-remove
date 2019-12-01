@@ -50,7 +50,7 @@ def kinect_pipeline(meas):
     depth_outs = depth_outs[:, 20:-20, :]
     depth_msk = depth_msk[:, 20:-20, :]
 
-    return depth_outs, depth_msk
+    return depth_outs, depth_msk, iramp
 def kinect_mask_tensor():
     # return the kinect mask that creates the positive-negative interval
     mask = np.zeros((424, 512))
