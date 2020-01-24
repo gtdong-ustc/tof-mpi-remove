@@ -18,20 +18,18 @@ The parameters available are as follows
 ```
 Arg
 ├───modelName		# Select the model required during training
-│   ├───deeptof               # Completed
-│   ├───deformable_kpn        # Completed
-│   ├───deformable_kpn_raw    # Completed but not debug (raw express the netword is trained by raw measurement)
-│   ├───kpn_raw               # Completed but not debug (FLAT: MRM)
-│   ├───kpn                   # Not completed 
-│   ├───deformable_ddfn_kpn   # Not completed (DDFN in "Real-world Image Denoising with Deep Boosting")
-│   ├───tof_kpn               # Not completed (network in "Deep End-to-End Alignment and Refinement for Time-of-Flight RGB-D Module")
-│   ├───jdpn                  # Not completed (network in "Deformable Kernel Network for Joint Image Filtering")
-│   └───coarse_fine_unet      # Not completed (network in "Deep Learning for MPI Removal in ToF Sensors")
+│   ├───sample_pyramid_add_kpn                 # SHARP-Net
+│   ├───sample_pyramid_add_kpn_NoRefine        # WORefine
+│   ├───sample_pyramid_add_kpn_NoFusion        # WOFusion
+│   ├───sample_pyramid_add_kpn_NoRefineFusion  # WORefFus
+│   ├───sample_pyramid_add_kpn_FiveLevel       # FiveLevle
+│   ├───sample_pyramid_add_kpn_FourLevel       # FourLevel
+│   ├───dear_kpn_no_rgb                        # ToF-KPN
+│   └───dear_kpn_no_rgb_DeepToF                # DeepToF
 ├───trainingSet		# Select the dataset required during training
-│   ├───FLAT_reflection_s5    # noise: MPI ,image shape 424 512
-│   ├───FLAT_full_s5          # noise: MPI + shotnoise ,image shape 424 512
-│   ├───deeptof_reflection    # noise: MPI ,image shape 256 256
-│   └───ToFFlyingThings3D     # noise: MPI ,image shape 384 512 (not completed)
+│   ├───tof_FT3       # ToF-FlyingThings3D dataset
+│   ├───FLAT          # FLAT dataset
+│   └───TB            # True box dataset
 ├───flagMode		# Select the running mode of the code
 │   ├───train                 # train model
 │   ├───eval_ED               # evaluate model in test sets
