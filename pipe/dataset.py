@@ -21,20 +21,25 @@ def plane_correction(fov, h_max, w_max, fov_flag=True):
 
     w_pos, h_pos = tf.meshgrid(list(range(w_max)), list(range(h_max)))
 
+    w_max_tensor = tf.convert_to_tensor(w_max, dtype=tf.float32)
+    h_max_tensor = tf.convert_to_tensor(h_max, dtype=tf.float32)
+
     w_pos = tf.expand_dims(w_pos, -1)
     h_pos = tf.expand_dims(h_pos, -1)
     w_pos = tf.cast(w_pos, dtype=tf.float32)
     h_pos = tf.cast(h_pos, dtype=tf.float32)
     if fov_flag:
         fov_pi = 63.5 * PI / 180.0
-        flen_h = (h_pos / 2.0) / tf.tan(fov_pi / 2.0)
-        flen_w = (w_pos / 2.0) / tf.tan(fov_pi / 2.0)
+        flen_h = (h_max_tensor / 2.0) / tf.tan(fov_pi / 2.0)
+        flen_w = (w_max_tensor / 2.0) / tf.tan(fov_pi / 2.0)
     else:
         flen_h = fov
         flen_w = fov
 
-    h = (w_pos - w_max / 2.) / flen_w
-    w = (h_pos - h_max / 2.) / flen_h
+
+
+    h = (w_pos - w_max_tensor / 2.) / flen_w
+    w = (h_pos - h_max_tensor / 2.) / flen_h
     norm = 1. / tf.sqrt(h ** 2 + w ** 2 + 1.)
 
     return norm
@@ -55,6 +60,8 @@ def colorize_img(value, vmin=None, vmax=None, cmap=None):
     # normalize
     vmin = tf.reduce_min(value) if vmin is None else vmin
     vmax = tf.reduce_max(value) if vmax is None else vmax
+    msk =  tf.cast(value > vmax, dtype=tf.float32)
+    value = (value - value * msk) + vmax * msk
     value = (value - vmin) / (vmax - vmin)  # vmin..vmax
 
     # quantize
@@ -105,29 +112,120 @@ def preprocessing_tof_FT3(features, labels):
     :return:
     """
 
-    rgb = features['rgb']
-    noise = features['noise']
-    intensity = features['intensity']
-    gt = features['gt']
-    h_max = gt.shape.as_list()[1]
-    w_max = gt.shape.as_list()[2]
+    # h_random = tf.random_uniform(shape=[1], minval=-48, maxval=48, dtype=tf.int32)[0]
+    # w_random = tf.random_uniform(shape=[1], minval=-64, maxval=64, dtype=tf.int32)[0]
+
+    # rgb_p = features['rgb'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # noisy_p = features['noisy'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # intensity_p = features['intensity'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # gt_p = labels['gt'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+
+    # rgb_p = features['rgb'][48 :-48, 64 :-64, :]
+    # noisy_p = features['noisy'][48 :-48, 64 :-64, :]
+    # intensity_p = features['intensity'][48:-48, 64:-64, :]
+    # gt_p = labels['gt'][48:-48, 64:-64, :]
+
+    rgb_p = features['rgb']
+    noisy_p = features['noisy']
+    intensity_p = features['intensity']
+    gt_p = labels['gt']
+    # h_max = gt.shape.as_list()[0]
+    # w_max = gt.shape.as_list()[1]
     #rgb
     rgb_list = []
-    rgb = rgb / 255.0
+    # rgb = rgb / 255.0
     for i in range(3):
-        rgb_list.append(rgb[:,:,i] - tf.reduce_mean(rgb[:,:,i]))
+        rgb_list.append(rgb_p[:,:,i] - tf.reduce_mean(rgb_p[:,:,i]))
 
     rgb_p = tf.stack(rgb_list, axis=-1)
+    rgb_p = rgb_p[48:-48,64:-64,:]
     features['rgb'] = rgb_p
-    #intensity
-    intensity_p = intensity / 255.0
+    # #intensity
+    # intensity_p = intensity / 255.0
+    intensity_p = intensity_p[48:-48,64:-64,:]
     features['intensity'] = intensity_p
-    #noise
-    noise_p = noise * plane_correction(fov=63.5, h_max=h_max, w_max=w_max) / 4095.0
-    features['noise'] = noise_p
-    #gt
-    gt_p = gt * plane_correction(fov=63.5, h_max=h_max, w_max=w_max) / 4095.0
-    features['gt'] = gt_p
+    # #noisy
+    # noisy_p = noisy * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
+    noisy_p = noisy_p[48:-48,64:-64,:]
+    features['noisy'] = noisy_p
+    # #gt
+    # gt_p = gt * 2.0 * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
+    gt_p = gt_p[48:-48,64:-64,:]
+    gt_p = gt_p * 2.0
+    labels['gt'] = gt_p
+    return features, labels
+
+def preprocessing_FLAT(features, labels):
+    """
+    not konw some preprocess pipeline needed to use
+    :param features:
+    :param labels:
+    :return:
+    """
+
+    noisy_p = features['noisy']
+    noisy_p = noisy_p[20:-20,:,:]
+    intensity_p = features['intensity']
+    intensity_p = intensity_p[20:-20,:,:]
+    gt_p = labels['gt']
+
+    features['intensity'] = intensity_p
+    features['noisy'] = noisy_p
+    gt_p = gt_p[20:-20, :, :]
+    gt_p = tof_cam.dist_to_depth(gt_p)
+    labels['gt'] = gt_p
+    return features, labels
+
+def preprocessing_TB(features, labels):
+    """
+    not konw some preprocess pipeline needed to use
+    :param features:
+    :param labels:
+    :return:
+    """
+
+    # h_random = tf.random_uniform(shape=[1], minval=-48, maxval=48, dtype=tf.int32)[0]
+    # w_random = tf.random_uniform(shape=[1], minval=-64, maxval=64, dtype=tf.int32)[0]
+
+    # rgb_p = features['rgb'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # noisy_p = features['noisy'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # intensity_p = features['intensity'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+    # gt_p = labels['gt'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
+
+    # rgb_p = features['rgb'][48 :-48, 64 :-64, :]
+    # noisy_p = features['noisy'][48 :-48, 64 :-64, :]
+    # intensity_p = features['intensity'][48:-48, 64:-64, :]
+    # gt_p = labels['gt'][48:-48, 64:-64, :]
+
+    rgb_p = features['rgb']
+    noisy_p = features['noisy']
+    intensity_p = features['intensity']
+    gt_p = labels['gt']
+    # h_max = gt.shape.as_list()[0]
+    # w_max = gt.shape.as_list()[1]
+    #rgb
+    # rgb_list = []
+    # # rgb = rgb / 255.0
+    # for i in range(3):
+    #     rgb_list.append(rgb_p[:,:,i] - tf.reduce_mean(rgb_p[:,:,i]))
+    #
+    # rgb_p = tf.stack(rgb_list, axis=-1)
+    rgb_p = rgb_p[7:-8,:,:]
+    features['rgb'] = rgb_p
+    # #intensity
+    intensity_p = intensity_p[7:-8,:,:]
+    # intensity_p = intensity_p / 250.0
+    features['intensity'] = intensity_p
+    # #noisy
+    # noisy_p = noisy * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
+    noisy_p = noisy_p[7:-8,:,:]
+    # noisy_p = noisy_p / 2.0
+    features['noisy'] = noisy_p
+    # #gt
+    # gt_p = gt * 2.0 * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
+    gt_p = gt_p[7:-8,:,:]
+    # gt_p = gt_p / 2.0
+    labels['gt'] = gt_p
     return features, labels
 
 def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
@@ -180,10 +278,13 @@ def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch
 
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
-    iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+    batch_dataset = batch_dataset.prefetch(2)
+    # dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    # batch_dataset = dataset.batch(batch_size)  # Batch Size
+    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
-    return batch_features, batch_labels
+    return batch_dataset
 
 def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     def _parse_function(serialized, height=height, width=width):
@@ -236,10 +337,13 @@ def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=
 
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
-    iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+    batch_dataset = batch_dataset.prefetch(2)
+    # dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    # batch_dataset = dataset.batch(batch_size)  # Batch Size
+    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
-    return batch_features, batch_labels
+    return batch_dataset
 
 def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
     def _parse_function(serialized, height=height, width=width):
@@ -299,10 +403,134 @@ def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, b
 
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
-    iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+    batch_dataset = batch_dataset.prefetch(2)
+    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
-    return batch_features, batch_labels
+    return batch_dataset
+
+def imgs_input_fn_TB(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
+    def _parse_function(serialized, height=height, width=width):
+        features = \
+            {
+                'noisy': tf.FixedLenFeature([], tf.string),
+                'intensity': tf.FixedLenFeature([], tf.string),
+                'rgb': tf.FixedLenFeature([], tf.string),
+                'gt': tf.FixedLenFeature([], tf.string)
+            }
+
+        parsed_example = tf.parse_single_example(serialized=serialized, features=features)
+
+        noisy_shape = tf.stack([height, width, 1])
+        intensity_shape = tf.stack([height , width , 1])
+        rgb_shape = tf.stack([height, width, 1])
+        gt_shape = tf.stack([height, width, 1])
+
+        noisy_raw = parsed_example['noisy']
+        intensity_raw = parsed_example['intensity']
+        rgb_raw = parsed_example['rgb']
+        gt_raw = parsed_example['gt']
+
+        # decode the raw bytes so it becomes a tensor with type
+
+        noisy = tf.decode_raw(noisy_raw, tf.float32)
+        noisy = tf.cast(noisy, tf.float32)
+        noisy = tf.reshape(noisy, noisy_shape)
+
+        intensity = tf.decode_raw(intensity_raw, tf.float32)
+        intensity = tf.cast(intensity, tf.float32)
+        intensity = tf.reshape(intensity, intensity_shape)
+
+        rgb = tf.decode_raw(rgb_raw, tf.float32)
+        rgb = tf.cast(rgb, tf.float32)
+        rgb = tf.reshape(rgb, rgb_shape)
+
+        gt = tf.decode_raw(gt_raw, tf.float32)
+        gt = tf.cast(gt, tf.float32)
+        gt = tf.reshape(gt, gt_shape)
+
+        features = {'noisy': noisy, 'intensity': intensity, 'rgb': rgb}
+        labels = {'gt': gt}
+
+        return features, labels
+
+    dataset = tf.data.TFRecordDataset(filenames=filenames)
+    # Parse the serialised data to TFRecords files.
+    # returns Tensorflow tensors for the image and labels.
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.map(
+        lambda features, labels: preprocessing_TB(features, labels)
+    )
+
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=256)
+
+    dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    batch_dataset = dataset.batch(batch_size)  # Batch Size
+    batch_dataset = batch_dataset.prefetch(2)
+    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+
+    return batch_dataset
+
+
+def imgs_input_fn_FLAT(filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):
+    def _parse_function(serialized, height=height, width=width):
+        features = \
+            {
+                'noisy': tf.FixedLenFeature([], tf.string),
+                'intensity': tf.FixedLenFeature([], tf.string),
+                'gt': tf.FixedLenFeature([], tf.string)
+            }
+
+        parsed_example = tf.parse_single_example(serialized=serialized, features=features)
+
+        noisy_shape = tf.stack([height, width, 1])
+        intensity_shape = tf.stack([height , width , 1])
+        gt_shape = tf.stack([height, width, 1])
+
+        noisy_raw = parsed_example['noisy']
+        intensity_raw = parsed_example['intensity']
+        gt_raw = parsed_example['gt']
+
+        # decode the raw bytes so it becomes a tensor with type
+
+        noisy = tf.decode_raw(noisy_raw, tf.float32)
+        noisy = tf.cast(noisy, tf.float32)
+        noisy = tf.reshape(noisy, noisy_shape)
+
+        intensity = tf.decode_raw(intensity_raw, tf.float32)
+        intensity = tf.cast(intensity, tf.float32)
+        intensity = tf.reshape(intensity, intensity_shape)
+
+        gt = tf.decode_raw(gt_raw, tf.float32)
+        gt = tf.cast(gt, tf.float32)
+        gt = tf.reshape(gt, gt_shape)
+
+        features = {'noisy': noisy, 'intensity': intensity}
+        labels = {'gt': gt}
+
+        return features, labels
+
+    dataset = tf.data.TFRecordDataset(filenames=filenames)
+    # Parse the serialised data to TFRecords files.
+    # returns Tensorflow tensors for the image and labels.
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.map(
+        lambda features, labels: preprocessing_FLAT(features, labels)
+    )
+
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=256)
+
+    dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
+    batch_dataset = dataset.batch(batch_size)  # Batch Size
+    batch_dataset = batch_dataset.prefetch(2)
+    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
+    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
+
+    return batch_dataset
+
 
 def bilinear_interpolation(input, offsets, N, deformable_range):
     """
@@ -315,10 +543,10 @@ def bilinear_interpolation(input, offsets, N, deformable_range):
     :return:
     """
     # input_size = tf.shape(input)
-    h_max_idx = input.shape.as_list()[1]
-    w_max_idx = input.shape.as_list()[2]
-    offsets_size = tf.shape(offsets)
+    h_max_idx = tf.shape(input)[1]
+    w_max_idx = tf.shape(input)[2]
     batch_size = tf.shape(input)[0]
+    offsets_size = tf.shape(offsets)
 
     h_w_reshape_size = [offsets_size[0], offsets_size[1], offsets_size[2], 2, N]
 
@@ -329,12 +557,12 @@ def bilinear_interpolation(input, offsets, N, deformable_range):
     coords_h = tf.cast(coords_h, dtype=tf.float32)
     coords_w = tf.cast(coords_w, dtype=tf.float32)
 
-    h0 = tf.floor(coords_h)
-    h1 = h0 + 1
-    w0 = tf.floor(coords_w)
-    w1 = w0 + 1
+    h0 = tf.cast(tf.floor(coords_h),dtype=tf.float32)
+    h1 = h0 + 1.0
+    w0 = tf.cast(tf.floor(coords_w),dtype=tf.float32)
+    w1 = w0 + 1.0
 
-    w_pos, h_pos = tf.meshgrid(list(range(w_max_idx)), list(range(h_max_idx)))
+    w_pos, h_pos = tf.meshgrid(tf.range(w_max_idx), tf.range(h_max_idx))
 
     w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
     h_pos = tf.expand_dims(tf.expand_dims(h_pos, 0), -1)
@@ -352,10 +580,10 @@ def bilinear_interpolation(input, offsets, N, deformable_range):
     coords_h_pos = coords_h + h_pos
     coords_w_pos = coords_w + w_pos
 
-    mask_inside_sum = tf.cast(0 <= ih0, dtype=tf.float32) + tf.cast(ih1 <= h_max_idx, dtype=tf.float32) + \
-                      tf.cast(0 <= iw0, dtype=tf.float32) + tf.cast(iw1 <= w_max_idx, dtype=tf.float32) + \
-                      tf.cast(tf.abs(h1) <= deformable_range, dtype=tf.float32) + tf.cast(
-        tf.abs(w1) <= deformable_range, dtype=tf.float32)
+    mask_inside_sum = tf.cast(0.0 <= ih0, dtype=tf.float32) + tf.cast(ih1 <= tf.cast(h_max_idx, dtype=tf.float32), dtype=tf.float32) + \
+                      tf.cast(0.0 <= iw0, dtype=tf.float32) + tf.cast(iw1 <= tf.cast(w_max_idx, dtype=tf.float32), dtype=tf.float32) + \
+                      tf.cast(tf.abs(h1) <= tf.cast(deformable_range,dtype=tf.float32), dtype=tf.float32) + \
+                      tf.cast(tf.abs(w1) <= tf.cast(deformable_range,dtype=tf.float32), dtype=tf.float32)
 
     mask_outside = mask_inside_sum < 6.0
     mask_inside = mask_inside_sum > 5.0
@@ -368,8 +596,7 @@ def bilinear_interpolation(input, offsets, N, deformable_range):
     ih1 = ih1 * mask_inside
     iw1 = iw1 * mask_inside
 
-    tensor_batch = list(range(batch_size))
-    tensor_batch = tf.convert_to_tensor(tensor_batch)
+    tensor_batch = tf.range(batch_size)
     tensor_batch = tf.reshape(tensor_batch, [batch_size, 1, 1, 1])
     tensor_batch = tf.tile(tensor_batch, multiples=[1, h_max_idx, w_max_idx, N])
     tensor_batch = tf.cast(tensor_batch, dtype=tf.float32)
@@ -427,13 +654,13 @@ def im2col(input, kernel_size = 3):
     h_pos_list = []
     w_pos_list = []
 
-    h_max = input.shape.as_list()[1]
-    w_max = input.shape.as_list()[2]
+    h_max = tf.shape(input)[1]
+    w_max = tf.shape(input)[2]
     batch_size = tf.shape(input)[0]
 
     padding_size = int((kernel_size - 1) / 2)
     input_padding = tf.pad(input, paddings=[[0,0],[padding_size,padding_size],[padding_size,padding_size],[0,0]])
-    w_pos, h_pos = tf.meshgrid(list(range(1, w_max + 1)), list(range(1, h_max + 1)))
+    w_pos, h_pos = tf.meshgrid(tf.range(1, w_max + 1), tf.range(1, h_max + 1))
     w_pos = tf.expand_dims(tf.expand_dims(w_pos, 0), -1)
     h_pos = tf.expand_dims(tf.expand_dims(h_pos, 0), -1)
     w_pos = tf.cast(w_pos, dtype=tf.float32)
@@ -491,10 +718,12 @@ def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w
 
 
 ALL_INPUT_FN = {
+    'FLAT':imgs_input_fn_FLAT,
     'FLAT_reflection_s5': imgs_input_fn,
     'FLAT_full_s5': imgs_input_fn,
     'deeptof_reflection': imgs_input_fn_deeptof,
-    'tof_FT3': imgs_input_fn_FT3
+    'tof_FT3': imgs_input_fn_FT3,
+    'TB':imgs_input_fn_TB,
 }
 
 def get_input_fn(training_set, filenames, height, width, shuffle=False, repeat_count=1, batch_size=32):

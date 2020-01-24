@@ -231,8 +231,8 @@ def sobel_edges(img):
     kery = tf.expand_dims(kery, -1)
     kery = tf.expand_dims(kery, -1)
     kery = tf.tile(kery, [1, 1, channel, 1])
-    gx = tf.nn.depthwise_conv2d_native(img, kerx, strides=[1,1,1,1], padding="VALID")
-    gy = tf.nn.depthwise_conv2d_native(img, kery, strides=[1,1,1,1], padding="VALID")
+    gx = tf.nn.depthwise_conv2d_native(img, kerx, strides=[1,1,1,1], padding="SAME")
+    gy = tf.nn.depthwise_conv2d_native(img, kery, strides=[1,1,1,1], padding="SAME")
     return tf.concat([gx, gy], axis=-1)
     # return tf.squeeze(tf.image.sobel_edges(img))
 
@@ -242,7 +242,10 @@ def sobel_gradient_loss(x, y, mask=None):
         mask = tf.ones_like(x, dtype=tf.float32)
     g1 = sobel_edges(x)
     g2 = sobel_edges(y)
-    return tf.reduce_sum(mask *tf.reduce_sum(tf.abs(g1 - g2), axis=-1, keep_dims=True)) / tf.reduce_sum(mask)
+    print('***************************')
+    print(g1)
+    print(mask[:,1:-1,1:-1,:])
+    return tf.reduce_sum(mask *tf.reduce_sum(tf.abs(g1 - g2), axis=-1, keepdims=True)) / tf.reduce_sum(mask)
 
 
 SUPERVISED_LOSS = {

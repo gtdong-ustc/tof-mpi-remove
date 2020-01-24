@@ -5,10 +5,12 @@
 # this code simulates the time-of-flight data
 # all time unit are picoseconds (1 picosec = 1e-12 sec)
 import sys
-
+import os
+# os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
 sys.path.insert(0, '../sim/')
 import argparse
 import tensorflow as tf
+from PIL import Image
 
 tf.logging.set_verbosity(tf.logging.INFO)
 from loss import *
@@ -18,17 +20,6 @@ from dataset import *
 from metric import *
 
 tof_cam = kinect_real_tf()
-
-gpu_device_number_list = [
-{'GPU': 0},
-{'GPU': 0, 'GPU': 1},
-{'GPU': 0, 'GPU': 1, 'GPU': 2},
-{'GPU': 0, 'GPU': 1, 'GPU': 2, 'GPU': 3},
-{'GPU': 0, 'GPU': 1, 'GPU': 2, 'GPU': 3, 'GPU': 4},
-{'GPU': 0, 'GPU': 1, 'GPU': 2, 'GPU': 3, 'GPU': 4, 'GPU': 5},
-{'GPU': 0, 'GPU': 1, 'GPU': 2, 'GPU': 3, 'GPU': 4, 'GPU': 5, 'GPU': 6},
-{'GPU': 0, 'GPU': 1, 'GPU': 2, 'GPU': 3, 'GPU': 4, 'GPU': 5, 'GPU': 6, 'GPU': 7}
-]
 
 def tof_net_func(features, labels, mode, params):
     """
@@ -41,14 +32,19 @@ def tof_net_func(features, labels, mode, params):
     """
     depth_kinect = None
     depth_kinect_msk = None
+    amplitude_kinect = None
+    rgb_kinect = None
     raw_new = None
     offsets = None
     depth_outs = None
+    depth_residual_every_scale = None
     depth_msk = None
+    amplitude_outs = None
+    gt_msk = None
     z_multiplier = None
     loss_msk = None
     loss_mask_dict = {}
-    depth_residual_scale = [0, 0, 0, 0, 0, 1.0]
+    # depth_residual_scale = [0, 0, 0, 0, 0, 1.0]
 
     if params['training_set'] == 'FLAT_reflection_s5' or params['training_set'] == 'FLAT_full_s5':
         if params['output_flg'] == True:
@@ -63,7 +59,7 @@ def tof_net_func(features, labels, mode, params):
             ### add gt msk
             loss_mask_dict['gt_msk'] = gt_msk
         full = features['full']
-        depth_kinect, depth_kinect_msk = kinect_pipeline(full)
+        depth_kinect, depth_kinect_msk, amplitude_kinect = kinect_pipeline(full)
         depth_kinect = tf.expand_dims(depth_kinect, -1)
         depth_kinect_msk = tf.expand_dims(depth_kinect_msk, axis=-1)
     elif params['training_set'] == 'deeptof_reflection':
@@ -79,6 +75,7 @@ def tof_net_func(features, labels, mode, params):
         full = features['depth']
         amps = features['amps']
         depth_kinect = full
+        amplitude_kinect = amps
         depth_kinect_msk = depth_kinect > 1e-4
         depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
 
@@ -97,11 +94,63 @@ def tof_net_func(features, labels, mode, params):
         rgb = features['rgb']
 
         depth_kinect = full
+        amplitude_kinect = intensity
+        rgb_kinect = rgb
+        depth_kinect_msk = depth_kinect < 1.0
+        depth_kinect_msk_tmp = depth_kinect > 10.0/4095.0
+        depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
+        depth_kinect_msk_tmp = tf.cast(depth_kinect_msk_tmp, tf.float32)
+        depth_kinect_msk = depth_kinect_msk * depth_kinect_msk_tmp
+    elif params['training_set'] == 'TB':
+        if params['output_flg'] == True:
+            gt = None
+        else:
+            gt = labels['gt']
+            gt_msk = gt > 1e-4
+            gt_msk = tf.cast(gt_msk, tf.float32)
+
+            ### add gt msk
+            loss_mask_dict['gt_msk'] = gt_msk
+        full = features['noisy']
+        intensity = features['intensity']
+        rgb = features['rgb']
+
+        depth_kinect = full
+        amplitude_kinect = intensity
+        rgb_kinect = rgb
+        depth_kinect_msk = depth_kinect < 2.0
+        depth_kinect_msk_tmp = depth_kinect > 1e-4
+        depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
+        depth_kinect_msk_tmp = tf.cast(depth_kinect_msk_tmp, tf.float32)
+        depth_kinect_msk = depth_kinect_msk * depth_kinect_msk_tmp
+
+    elif params['training_set'] == 'FLAT':
+        if params['output_flg'] == True:
+            gt = None
+        else:
+            gt = labels['gt']
+            gt_msk = gt > 1e-4
+            gt_msk = tf.cast(gt_msk, tf.float32)
+
+            ### add gt msk
+            loss_mask_dict['gt_msk'] = gt_msk
+        full = features['noisy']
+        intensity = features['intensity']
+
+        depth_kinect = full
+        amplitude_kinect = intensity
         depth_kinect_msk = depth_kinect > 1e-4
         depth_kinect_msk = tf.cast(depth_kinect_msk, tf.float32)
 
     ### add kinect_msk
     loss_mask_dict['depth_kinect_msk'] = depth_kinect_msk
+    if gt_msk != None:
+        # loss_mask_dict['gt_msk'] = gt_msk * depth_kinect_msk
+        loss_mask_dict['depth_kinect_with_gt_msk'] = gt_msk * depth_kinect_msk
+        loss_mask_dict['gt_msk'] = gt_msk
+    else:
+        loss_mask_dict['depth_kinect_with_gt_msk'] = depth_kinect_msk
+
 
 
     model_name_list = params['model_name'].split('_')
@@ -113,29 +162,45 @@ def tof_net_func(features, labels, mode, params):
             raw_new = get_network(name=params['model_name'], x=full, flg=mode == tf.estimator.ModeKeys.TRAIN,
                                            regular=0.1, batch_size=params['batch_size'],range=params['deformable_range'])
 
-        depth_outs, depth_msk = kinect_pipeline(raw_new)
+        depth_outs, depth_msk,  amplitude_outs= kinect_pipeline(raw_new)
         depth_outs = tf.expand_dims(depth_outs, -1)
         depth_msk = tf.expand_dims(depth_msk, axis=-1)
     else:
         if model_name_list[0] == 'deformable':
             if params['training_set'] == 'tof_FT3':
-                inputs = tf.concat([depth_kinect, intensity, rgb], axis=-1)
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
             else:
                 inputs = depth_kinect
             depth_outs, offsets = get_network(name=params['model_name'], x=inputs,
                                               flg=mode == tf.estimator.ModeKeys.TRAIN, regular=0.1,
                                               batch_size=params['batch_size'], range=params['deformable_range'])
-
         else:
             if params['training_set'] == 'tof_FT3':
-                inputs = tf.concat([depth_kinect, intensity, rgb], axis=-1)
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
+            elif params['training_set'] == 'TB':
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
+            elif params['training_set'] == 'FLAT_full_s5' or params['training_set'] == 'FLAT_reflection_s5':
+                rgb_kinect = tf.concat([tf.ones_like(depth_kinect, dtype=tf.float32), tf.ones_like(depth_kinect, dtype=tf.float32), tf.ones_like(depth_kinect, dtype=tf.float32)],axis=-1)
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
+            elif params['training_set'] == 'deeptof_reflection':
+                rgb_kinect = tf.concat([tf.ones_like(depth_kinect, dtype=tf.float32), tf.ones_like(depth_kinect, dtype=tf.float32),tf.ones_like(depth_kinect, dtype=tf.float32)], axis=-1)
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
+            elif params['training_set'] == 'FLAT':
+                rgb_kinect = tf.concat([tf.ones_like(depth_kinect, dtype=tf.float32), tf.ones_like(depth_kinect, dtype=tf.float32),tf.ones_like(depth_kinect, dtype=tf.float32)], axis=-1)
+                inputs = tf.concat([depth_kinect, amplitude_kinect, rgb_kinect], axis=-1)
             else:
                 inputs = depth_kinect
-            depth_outs = get_network(name=params['model_name'], x=inputs, flg=mode == tf.estimator.ModeKeys.TRAIN,
+
+
+            if model_name_list[0] == 'sample' or model_name_list[0] == 'pyramid':
+                depth_outs, depth_residual_every_scale = get_network(name=params['model_name'], x=inputs, flg=mode == tf.estimator.ModeKeys.TRAIN,
+                                         regular=0.1, batch_size=params['batch_size'], range=params['deformable_range'])
+            else:
+                depth_outs = get_network(name=params['model_name'], x=inputs, flg=mode == tf.estimator.ModeKeys.TRAIN,
                                      regular=0.1, batch_size=params['batch_size'], range=params['deformable_range'])
 
-        # depth_msk = depth_outs[-1] > 1e-4
-        # depth_msk = tf.cast(depth_msk, tf.float32)
+        depth_msk = depth_outs > 1e-4
+        depth_msk = tf.cast(depth_msk, tf.float32)
 
     ## get the msk needed in compute loss and metrics
     # loss_mask_dict['depth_msk'] = depth_msk
@@ -166,42 +231,211 @@ def tof_net_func(features, labels, mode, params):
                 loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
                 loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
                 loss = loss_1 + 10.0 * loss_2
+            elif params['add_gradient'] == 'sobel_gradient_x3':
+                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
+                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
+                loss = loss_1 + 3.0 * loss_2
+            elif params['add_gradient'] == 'sobel_gradient_x6':
+                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
+                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
+                loss = loss_1 + 6.0 * loss_2
+            elif params['add_gradient'] == 'sobel_gradient_x13':
+                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
+                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
+                loss = loss_1 + 13.0 * loss_2
             else:
                 loss = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
         # configure the training op (for TRAIN mode)
         if mode == tf.estimator.ModeKeys.TRAIN:
             tf.summary.scalar('training_loss', loss)
             global_step = tf.train.get_global_step()
-            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step=global_step, decay_steps= 2 * int(params['samples_number'] / params['batch_size']), decay_rate=0.7)
+            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step=global_step, decay_steps= params['decay_epoch'] * int(params['samples_number'] / params['batch_size']), decay_rate=0.7)
             optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
                 train_op = optimizer.minimize(loss, global_step=global_step)
         if mode == tf.estimator.ModeKeys.EVAL:
+            depth_residual_every_scale_negative = []
             if loss_msk == None:
+                amplitude_kinect_map = tf.identity(amplitude_kinect, 'amplitude_kinect')
                 depth_gt_map = tf.identity(gt, 'depth_gt')
                 depth_outs_map = tf.identity(depth_outs, 'depth_outs')
                 depth_kinect_map = tf.identity(depth_kinect, 'depth_kinect')
-                depth_outs_error = tf.identity(tf.abs(gt - depth_outs), 'depth_outs_error')
-                depth_kinect_error = tf.identity(tf.abs(gt - depth_kinect), 'depth_kinect_error')
+                depth_outs_error = tf.identity(gt - depth_outs, 'depth_outs_error')
+                depth_kinect_error = tf.identity(gt - depth_kinect, 'depth_kinect_error')
+                depth_kinect_error_negative = depth_kinect_error * tf.cast(depth_kinect_error < 0, dtype=tf.float32)
+                tensor_min = tf.reduce_min(depth_kinect_error_negative, axis=[1, 2, 3], keepdims=True)
+                depth_kinect_error_negative = depth_kinect_error_negative / tensor_min
+                depth_kinect_error_positive = depth_kinect_error * tf.cast(depth_kinect_error >= 0, dtype=tf.float32)
+                tensor_max = tf.reduce_max(depth_kinect_error_negative, axis=[1, 2, 3], keepdims=True)
+                depth_kinect_error_positive = depth_kinect_error_positive / tensor_max
+                depth_outs_error_negative = depth_outs_error * tf.cast(depth_outs_error < 0, dtype=tf.float32)
+                depth_outs_error_negative = depth_outs_error_negative / tensor_min
+                depth_outs_error_positive = depth_outs_error * tf.cast(depth_outs_error >= 0, dtype=tf.float32)
+                depth_outs_error_positive = depth_outs_error_positive / tensor_max
             else:
                 depth_gt_map = tf.identity(gt, 'depth_gt')
+                amplitude_kinect_map = tf.identity(amplitude_kinect, 'amplitude_kinect')
                 depth_outs_map = tf.identity(depth_outs * loss_msk, 'depth_outs')
-                depth_kinect_map = tf.identity(depth_kinect * loss_msk, 'depth_kinect')
-                depth_outs_error = tf.identity(tf.abs(gt * loss_msk - depth_outs * loss_msk), 'depth_outs_error')
-                depth_kinect_error = tf.identity(tf.abs(gt * loss_msk - depth_kinect * loss_msk), 'depth_kinect_error')
+                # depth_kinect_map = tf.identity(depth_kinect * loss_msk, 'depth_kinect')
+                depth_kinect_map = tf.identity(depth_kinect, 'depth_kinect')
+                depth_outs_error = tf.identity((gt * loss_msk - depth_outs * loss_msk), 'depth_outs_error')
+                depth_kinect_error = tf.identity((gt * loss_msk - depth_kinect * loss_msk), 'depth_kinect_error')
+                depth_kinect_error_negative = depth_kinect_error * tf.cast(depth_kinect_error < 0, dtype=tf.float32)
+                tensor_min = tf.reduce_min(depth_kinect_error_negative, axis=[1, 2, 3], keepdims=True)
+                depth_kinect_error_negative = depth_kinect_error_negative / tensor_min
+                depth_kinect_error_positive = depth_kinect_error * tf.cast(depth_kinect_error >= 0, dtype=tf.float32)
+                tensor_max = tf.reduce_max(depth_kinect_error_negative, axis=[1, 2, 3], keepdims=True)
+                depth_kinect_error_positive = depth_kinect_error_positive / tensor_max
+                depth_outs_error_negative = depth_outs_error * tf.cast(depth_outs_error < 0, dtype=tf.float32)
+                depth_outs_error_negative = depth_outs_error_negative / tensor_min
+                depth_outs_error_positive = depth_outs_error * tf.cast(depth_outs_error >= 0, dtype=tf.float32)
+                depth_outs_error_positive = depth_outs_error_positive / tensor_max
 
-            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            tf.summary.image('depth_outs_error', colorize_img(depth_outs_error, vmin=0.0, vmax=0.1, cmap='jet'))
-            tf.summary.image('depth_kinect_error', colorize_img(depth_kinect_error, vmin=0.0, vmax=0.1, cmap='jet'))
+                if model_name_list[0] == 'sample':
+
+                    for i in range(len(depth_residual_every_scale)):
+                        # tensor_max = tf.reduce_max(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
+                        # tensor_min = tf.reduce_min(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
+                        # depth_residual_every_scale[i] = depth_residual_every_scale[i] - tensor_min
+                        depth_residual_every_scale_negative.append(depth_residual_every_scale[i] * tf.cast(depth_residual_every_scale[i] < 0, dtype=tf.float32))
+                        tensor_min = tf.reduce_min(depth_residual_every_scale_negative[i], axis=[1, 2, 3], keepdims=True)
+                        depth_residual_every_scale_negative[i] = depth_residual_every_scale_negative[i] / tensor_min
+                        # depth_residual_every_scale[i] = depth_residual_every_scale[i] * tf.cast(depth_residual_every_scale[i] >= 0, dtype=tf.float32)
+
+                        # full error map
+                        depth_residual_every_scale[i] = depth_residual_every_scale[i]
+
+                        tensor_max = tf.reduce_max(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
+                        depth_residual_every_scale[i] = depth_residual_every_scale[i] / tensor_max
+
+                    depth_residual_in_scale_1 = tf.identity(tf.abs(depth_residual_every_scale[-1] * loss_msk),
+                                                            'depth_residual_in_scale_1')
+                    depth_residual_in_scale_1_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-1] * loss_msk),
+                                                            'depth_residual_in_scale_1_negative')
+                    depth_residual_in_scale_2 = tf.identity(tf.abs(depth_residual_every_scale[-2] * loss_msk),
+                                                            'depth_residual_in_scale_2')
+                    depth_residual_in_scale_2_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-2] * loss_msk),
+                                                            'depth_residual_in_scale_2_negative')
+                    depth_residual_in_scale_3 = tf.identity(tf.abs(depth_residual_every_scale[-3] * loss_msk),
+                                                            'depth_residual_in_scale_3')
+                    depth_residual_in_scale_3_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-3] * loss_msk),
+                                                            'depth_residual_in_scale_3_negative')
+                    depth_residual_in_scale_4 = tf.identity(tf.abs(depth_residual_every_scale[-4] * loss_msk),
+                                                            'depth_residual_in_scale_4')
+                    depth_residual_in_scale_4_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-4] * loss_msk),
+                                                            'depth_residual_in_scale_4_negative')
+                    depth_residual_in_scale_5 = tf.identity(tf.abs(depth_residual_every_scale[-5] * loss_msk),
+                                                           'depth_residual_in_scale_5')
+                    depth_residual_in_scale_5_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-5] * loss_msk),
+                                                            'depth_residual_in_scale_5_negative')
+                if model_name_list[-1] == 'scale' and model_name_list[-2] == 'substract':
+                    print('no scale 6')
+                elif model_name_list[-1] == 'scale' or params['model_name'] == 'sample_pyramid_add_kpn':
+                    depth_residual_in_scale_6 = tf.identity(tf.abs(depth_residual_every_scale[-6] * loss_msk),
+                                                            'depth_residual_in_scale_6')
+                    depth_residual_in_scale_6_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-6] * loss_msk),
+                                                            'depth_residual_in_scale_6_negative')
+                    if params['model_name'] == 'sample_pyramid_add_kpn':
+                        depth_residual_in_scale_7 = tf.identity(tf.abs(depth_residual_every_scale[-7] * loss_msk),
+                                                                'depth_residual_in_scale_7')
+                        depth_residual_in_scale_7_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-7] * loss_msk),
+                                                                'depth_residual_in_scale_7_negative')
+                        depth_residual_in_scale_8 = tf.identity(tf.abs(depth_residual_every_scale[-8] * loss_msk),
+                                                                'depth_residual_in_scale_8')
+                        depth_residual_in_scale_8_negative = tf.identity(
+                            tf.abs(depth_residual_every_scale_negative[-8] * loss_msk),
+                            'depth_residual_in_scale_8_negative')
+
+            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=4.0, cmap='jet'))
+            # tf.summary.image('amplitude_kinect_map',amplitude_kinect_map)
+            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=4.0, cmap='jet'))
+            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=4.0, cmap='jet'))
+            # tf.summary.image('depth_outs_error',colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.2, cmap='jet'))
+            # # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), cmap='jet'))
+            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.6, cmap='jet'))
+
+            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
+            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
+
+            # tf.summary.image('depth_gt', depth_gt_map)
+            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
+            # tf.summary.image('depth_outs', depth_outs_map)
+            # tf.summary.image('depth_kinect',depth_kinect_map)
+            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
+
+            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.43, vmax=0.8, cmap='jet'))
+            tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
+            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.43, vmax=0.8, cmap='jet'))
+            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, cmap='jet'))
+            tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            tf.summary.image('depth_kinect_error',
+                             colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.1, cmap='jet'))
+
+            tf.summary.image('depth_outs_error_positive', colorize_img(depth_outs_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_kinect_error_positive', colorize_img(depth_kinect_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_outs_error_negative',colorize_img(depth_outs_error_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_kinect_error_negative',colorize_img(depth_kinect_error_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+            if model_name_list[0] == 'sample':
+                tf.summary.image('depth_residual_in_scale_1', colorize_img(depth_residual_in_scale_1, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_2', colorize_img(depth_residual_in_scale_2, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_3', colorize_img(depth_residual_in_scale_3, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_4', colorize_img(depth_residual_in_scale_4, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_5', colorize_img(depth_residual_in_scale_5, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_1_negative',colorize_img(depth_residual_in_scale_1_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_2_negative',colorize_img(depth_residual_in_scale_2_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_3_negative',colorize_img(depth_residual_in_scale_3_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_4_negative',colorize_img(depth_residual_in_scale_4_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_5_negative',colorize_img(depth_residual_in_scale_5_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+            if model_name_list[-1] == 'scale' and model_name_list[-2] == 'substract':
+                print('no scale 6')
+            elif model_name_list[0] == 'pyramid' or model_name_list[-1] == 'scale'or params['model_name'] == 'sample_pyramid_add_kpn':
+                tf.summary.image('depth_residual_in_scale_6', colorize_img(depth_residual_in_scale_6, vmin=0.0, vmax=1.0, cmap='jet'))
+                tf.summary.image('depth_residual_in_scale_6_negative',colorize_img(depth_residual_in_scale_6_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                if params['model_name'] == 'sample_pyramid_add_kpn':
+                    tf.summary.image('depth_residual_in_scale_7',colorize_img(depth_residual_in_scale_7, vmin=0.0, vmax=1.0, cmap='jet'))
+                    tf.summary.image('depth_residual_in_scale_7_negative',colorize_img(depth_residual_in_scale_7_negative, vmin=0.0, vmax=1.0, cmap='jet'))
+                    tf.summary.image('depth_residual_in_scale_8', colorize_img(depth_residual_in_scale_8, vmin=0.0, vmax=1.0, cmap='jet'))
+                    tf.summary.image('depth_residual_in_scale_8_negative',colorize_img(depth_residual_in_scale_8_negative, vmin=0.0, vmax=1.0, cmap='jet'))
 
             ## get metrics
-            ori_mae, pre_mae = get_metrics_mae(depth_outs * 409.5, depth_kinect * 409.5, gt * 409.5, loss_msk)
+            if params['training_set'] == 'tof_FT3':
+                depth_outs = depth_outs * 409.5
+                depth_kinect = depth_kinect * 409.5
+                gt = gt * 409.5
+                ori_mae, pre_mae, pre_mae_percent_25, pre_mae_percent_50, pre_mae_percent_75 = get_metrics_mae(depth_outs, depth_kinect , gt, loss_msk)
+            elif params['training_set'] == 'FLAT_full_s5' or params['training_set'] == 'FLAT_reflection_s5':
+                depth_outs = depth_outs * 100.0
+                depth_kinect = depth_kinect * 100.0
+                gt = gt * 100.0
+                ori_mae, pre_mae, pre_mae_percent_25, pre_mae_percent_50, pre_mae_percent_75 = get_metrics_mae(depth_outs, depth_kinect, gt, loss_msk)
+            elif params['training_set'] == 'deeptof_reflection':
+                depth_outs = depth_outs * 100.0
+                depth_kinect = depth_kinect * 100.0
+                gt = gt * 100.0
+                ori_mae, pre_mae, pre_mae_percent_25, pre_mae_percent_50, pre_mae_percent_75 = get_metrics_mae(depth_outs, depth_kinect, gt, loss_msk)
+            elif params['training_set'] == 'FLAT':
+                depth_outs = depth_outs * 100.0
+                depth_kinect = depth_kinect * 100.0
+                gt = gt * 100.0
+                ori_mae, pre_mae, pre_mae_percent_25, pre_mae_percent_50, pre_mae_percent_75 = get_metrics_mae(depth_outs, depth_kinect, gt, loss_msk)
+            elif params['training_set'] == 'TB':
+                depth_outs = depth_outs * 200.0
+                depth_kinect = depth_kinect * 200.0
+                gt = gt * 200.0
+                ori_mae, pre_mae, pre_mae_percent_25, pre_mae_percent_50, pre_mae_percent_75 = get_metrics_mae(
+                    depth_outs, depth_kinect, gt, loss_msk)
             metrics = {
                 "ori_MAE": ori_mae,
                 "pre_MAE": pre_mae,
+                'pre_mae_percent_25':pre_mae_percent_25,
+                'pre_mae_percent_50':pre_mae_percent_50,
+                'pre_mae_percent_75':pre_mae_percent_75,
             }
             eval_summary_hook = tf.train.SummarySaverHook(
                                 save_steps=1,
@@ -217,8 +451,10 @@ def tof_net_func(features, labels, mode, params):
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         predictions = {
+            "depth_input": depth_kinect,
+            "irs_input": amplitude_kinect,
             "depth": depth_outs,
-            "offset": offsets
+            # "offset": offsets
         }
     else:
         predictions = None
@@ -234,7 +470,7 @@ def tof_net_func(features, labels, mode, params):
 
 def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, learning_rate, batch_size, traing_steps,
                      evaluate_steps, deformable_range, model_name, checkpoint_steps, loss_mask, gpu_Number,
-                     training_set, image_shape, samples_number, add_gradient):
+                     training_set, image_shape, samples_number, add_gradient, decay_epoch):
     """
     This function represents the training mode of the code
     :param train_data_path:
@@ -254,21 +490,23 @@ def dataset_training(train_data_path, evaluate_data_path, model_dir, loss_fn, le
     :param image_shape:
     :return: no return
     """
-    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
+    strategy = tf.contrib.distribute.MirroredStrategy(num_gpus=gpu_Number)
+    # session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
         keep_checkpoint_max=10,
         save_checkpoints_steps=evaluate_steps,
-        session_config=session_config,
+        # session_config=session_config,
         save_summary_steps=50,
-        log_step_count_steps=20
+        log_step_count_steps=20,
+        train_distribute=strategy,
     )  # set the frequency of logging steps for loss function
 
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
                                      params={'learning_rate': learning_rate, 'batch_size': batch_size, 'model_dir': model_dir,
                                              'loss_fn': loss_fn, 'deformable_range': deformable_range, 'model_name': model_name,
                                              'loss_mask': loss_mask, 'output_flg':False, 'training_set': training_set,
-                                             'samples_number': samples_number, 'add_gradient': add_gradient})
+                                             'samples_number': samples_number, 'add_gradient': add_gradient, 'decay_epoch':decay_epoch})
 
 
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: get_input_fn(training_set=training_set, filenames=train_data_path, height=image_shape[0], width=image_shape[1],
@@ -296,13 +534,15 @@ def dataset_testing(evaluate_data_path, model_dir, batch_size, checkpoint_steps,
     :param image_shape:
     :return:
     """
-
-    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
+    strategy = tf.contrib.distribute.MirroredStrategy(num_gpus=gpu_Number)
+    # session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
-        session_config=session_config,
+        # session_config=session_config,
         log_step_count_steps = 10,
-        save_summary_steps = 5,)
+        save_summary_steps = 5,
+        train_distribute=strategy,
+    )
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
                 'deformable_range': deformable_range, 'loss_fn':loss_fn,'add_gradient':add_gradient,
@@ -328,12 +568,15 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
     :param image_shape:
     :return:
     """
-    session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
+    strategy = tf.contrib.distribute.MirroredStrategy(num_gpus=gpu_Number)
+    # session_config = tf.ConfigProto(device_count=gpu_device_number_list[gpu_Number - 1])
     configuration = tf.estimator.RunConfig(
         model_dir=model_dir,
-        session_config=session_config,
+        # session_config=session_config,
         log_step_count_steps = 10,
-        save_summary_steps = 5,)
+        save_summary_steps = 5,
+        train_distribute=strategy,
+    )
     tof_net = tf.estimator.Estimator(model_fn=tof_net_func, config=configuration,
         params={'learning_rate': 1e-4, 'batch_size': batch_size, 'model_dir': model_dir,
                 'deformable_range': deformable_range, 'loss_fn':loss_fn,
@@ -341,15 +584,33 @@ def dataset_output(result_path, evaluate_data_path, model_dir, batch_size, check
     result = list(tof_net.predict(input_fn=lambda: get_input_fn(training_set=training_set, filenames=evaluate_data_path, height=image_shape[0], width=image_shape[1],
                 shuffle=False, repeat_count=1, batch_size=batch_size), checkpoint_path=model_dir + '/model.ckpt-' + checkpoint_steps))
 
+    root_dir = result_path
+    pre_depth_dir = os.path.join(root_dir, 'pre_depth')
+    depth_input_dir = os.path.join(root_dir, 'depth_input')
+    depth_input_png_dir = os.path.join(root_dir, 'depth_input_png')
+    if not os.path.exists(pre_depth_dir):
+        os.mkdir(pre_depth_dir)
+    if not os.path.exists(depth_input_dir):
+        os.mkdir(depth_input_dir)
+    if not os.path.exists(depth_input_png_dir):
+        os.mkdir(depth_input_png_dir)
+
     for i in range(len(result)):
-        pre_depth = result[i]['depth']
-        offset = result[i]['offset']
-
+        pre_depth_path = os.path.join(pre_depth_dir, str(i))
+        depth_input_path = os.path.join(depth_input_dir, str(i))
+        depth_input_png_path = os.path.join(depth_input_png_dir, str(i)+'.png')
+        pre_depth = np.squeeze(result[i]['depth'])
+        input_depth = np.squeeze(result[i]['depth_input'])
+        input_depth_png = input_depth * 100
+        print(input_depth_png.shape)
         pre_depth = np.reshape(pre_depth, -1).astype(np.float32)
-        offset = np.reshape(offset, -1).astype(np.float32)
+        input_depth = np.reshape(input_depth, -1).astype(np.float32)
 
-        pre_depth.tofile(result_path + '/pre_depth_'+str(i))
-        offset.tofile(result_path + '/offset_'+str(i))
+        input_depth_png = Image.fromarray(input_depth_png)
+        input_depth_png = input_depth_png.convert("L")
+        input_depth_png.save(depth_input_png_path)
+        pre_depth.tofile(pre_depth_path)
+        input_depth.tofile(depth_input_path)
 
 
 if __name__ == '__main__':
@@ -357,10 +618,10 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--trainingSet", help='the name to the list file with training set', default = 'FLAT_reflection_s5', type=str)
     parser.add_argument("-m", "--modelName", help="name of the denoise model to be used", default="deformable_kpn")
     parser.add_argument("-l", "--lr", help="initial value for learning rate", default=1e-5, type=float)
-    parser.add_argument("-i", "--imageShape", help='two int for image shape [height,width]', nargs='+', type=int, default=[424, 512])
+    parser.add_argument("-i", "--imageShape", help='two int for image shape [height,width]', nargs='+', type=int, default=[239, 320])##default=[424, 512]
     parser.add_argument("-b", "--batchSize", help='batch size to use during training', type=int, default=4)
     parser.add_argument("-s", "--steps", help='number of training steps', type=int, default=4000)
-    parser.add_argument("-e", "--evalSteps", help='after the number of training steps to eval', type=int, default=100)
+    parser.add_argument("-e", "--evalSteps", help='after the number of training steps to eval', type=int, default=400)
     parser.add_argument("-o", '--lossType', help="Type of supervised loss to use, such as mean_l2, mean_l1, sum_l2, sum_l1, smoothness, SSIM", default="mean_l2", type=str)
     parser.add_argument("-d", "--deformableRange", help="the range of deformable kernel", default=192.0, type=float)
     parser.add_argument("-f", '--flagMode', help="The flag that select the runing mode, such as train, eval, output", default='train', type=str)
@@ -370,15 +631,22 @@ if __name__ == '__main__':
     parser.add_argument("-g", '--gpuNumber', help="The number of GPU used in training", default=2, type=int)
     parser.add_argument('--samplesNumber', help="samples number in one epoch", default=5800, type=int)
     parser.add_argument('--addGradient', help="add the gradient loss function", default='sobel_gradient', type=str)
+    parser.add_argument('--decayEpoch', help="after n epoch, decay the learning rate", default=2, type=int)
+    parser.add_argument('--shmFlag', help="using shm increase the training speed", default=False, type=bool)
     args = parser.parse_args()
 
-    dataset_dir = '/userhome/dataset/tfrecords'
+    if args.shmFlag == True:
+        dataset_dir = '/dev/shm/dataset/tfrecords'
+    else:
+        dataset_dir = '/userhome/dataset/tfrecords'
     model_dir = './result/kinect/' + args.modelName
     if not os.path.exists(model_dir):
         os.mkdir(model_dir)
 
     if args.modelName[0:10] == 'deformable':
         mkdir_name = args.trainingSet + '_' + args.lossType + '_dR' + str(args.deformableRange)
+    elif args.trainingSet == 'TB':
+        mkdir_name = 'tof_FT3' + '_' + args.lossType
     else:
         mkdir_name = args.trainingSet + '_' + args.lossType
     if args.postfix is not None:
@@ -403,7 +671,7 @@ if __name__ == '__main__':
                          evaluate_steps=args.evalSteps, deformable_range = args.deformableRange, model_name=args.modelName,
                          checkpoint_steps=args.checkpointSteps, loss_mask = args.lossMask, gpu_Number = args.gpuNumber,
                          training_set = args.trainingSet, image_shape = args.imageShape, samples_number = args.samplesNumber,
-                         add_gradient = args.addGradient)
+                         add_gradient = args.addGradient, decay_epoch=args.decayEpoch)
     elif args.flagMode == 'eval_TD':
         dataset_testing(evaluate_data_path=train_data_path, model_dir=model_dir, loss_fn=args.lossType,batch_size=args.batchSize,
                         checkpoint_steps=args.checkpointSteps, deformable_range = args.deformableRange, model_name = args.modelName,
