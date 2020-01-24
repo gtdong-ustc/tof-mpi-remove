@@ -4,26 +4,15 @@ This repository provides a deformable kernel denoise methods for time-of-flight 
 
 ## How to use the code
 
+environment
+```
+tensorflow-gpu==1.12.0 
+Pillow
+scikit-image
+six
+```
+
 the project starts with the 'start.py'. Through this file, you can select different models, data sets and loss functions for training, and you can switch between train, eval and output modes by adjusting parameters
-```
-parser = argparse.ArgumentParser(description='Script for training of a Deformable KPN Network')
-    parser.add_argument("-t", "--trainingSet", help='the name to the list file with training set', default = 'FLAT_reflection_s5', type=str)
-    parser.add_argument("-m", "--modelName", help="name of the denoise model to be used", default="deformable_kpn")
-    parser.add_argument("-l", "--lr", help="initial value for learning rate", default=1e-5, type=float)
-    parser.add_argument("-i", "--imageShape", help='two int for image shape [height,width]', nargs='+', type=int, default=[424, 512])
-    parser.add_argument("-b", "--batchSize", help='batch size to use during training', type=int, default=4)
-    parser.add_argument("-s", "--steps", help='number of training steps', type=int, default=4000)
-    parser.add_argument("-e", "--evalSteps", help='after the number of training steps to eval', type=int, default=100)
-    parser.add_argument("-o", '--lossType', help="Type of supervised loss to use, such as mean_l2, mean_l1, sum_l2, sum_l1, smoothness, SSIM", default="mean_l2", type=str)
-    parser.add_argument("-d", "--deformableRange", help="the range of deformable kernel", default=192.0, type=float)
-    parser.add_argument("-f", '--flagMode', help="The flag that select the runing mode, such as train, eval, output", default='train', type=str)
-    parser.add_argument("-p", '--postfix', help="the postfix of the training task", default=None, type=str)
-    parser.add_argument("-c", '--checkpointSteps', help="select the checkpoint of the model in finetune or evaluate", default="800", type=str)
-    parser.add_argument("-k", '--lossMask', help="the mask used in compute loss", default='gt_msk', type=str)
-    parser.add_argument("-g", '--gpuNumber', help="The number of GPU used in training", default=2, type=int)
-
-```
-
 The parameters available are as follows
 
 ```
@@ -45,8 +34,12 @@ Arg
 │   └───ToFFlyingThings3D     # noise: MPI ,image shape 384 512 (not completed)
 ├───flagMode		# Select the running mode of the code
 │   ├───train                 # train model
-│   ├───eval                  # evaluate model
+│   ├───eval_ED               # evaluate model in test sets
+│   ├───eval_TD               # evaluate model in training sets
 │   └───output                # output depth prediction, offsets, weight
+├───gpuNumber		# The number of GPU used in training
+├───addGradient		# weather add the gradient loss function
+├───decayEpoch		# after n epochs, decay the learning rate
 ├───lossType		# Select the loss function in training
 │   ├───mean_l1               # the mean of L1 loss between input and gt
 │   ├───mean_l2               # the mean of L2 loss
@@ -62,12 +55,13 @@ Arg
 │   └───sum_huber             # the sum of huber loss
 └───lossMask	    # Select the loss mask to be used during training
     ├───gt_msk                # Non-zero region in groundtruth
-    └───depth_kinect_msk      # Non-zero region in depth input
+    ├───depth_kinect_msk      # Non-zero region in depth input
+    └───depth_kinect_with_gt_msk      # gt_msk with depth_kinect_msk
 ```
 For example
 
 ```
-python start -b 8 -s 1000 -l 0.0001 -t FLAT_reflection_s5 -m deformable_kpn -o mean_l2 
+python start.py -b 2 -s 200000 -m sample_pyramid_add_kpn -p size384 -k depth_kinect_with_gt_msk -l 0.0004 -t tof_FT3 -i 480 640 -o mean_l1 --addGradient sobel_gradient -g 4 -e 1200
 ```
    
 
