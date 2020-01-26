@@ -29,9 +29,9 @@ Arg
 │   ├───dear_kpn_no_rgb                        # ToF-KPN
 │   └───dear_kpn_no_rgb_DeepToF                # DeepToF
 ├───trainingSet		# Select the dataset required during training
-│   ├───tof_FT3       # ToF-FlyingThings3D dataset
-│   ├───FLAT          # FLAT dataset
-│   └───TB            # True box dataset
+│   ├───tof_FT3       # ToF-FlyingThings3D dataset (424, 512)
+│   ├───FLAT          # FLAT dataset (480, 640)
+│   └───TB            # True box dataset (239, 320)
 ├───flagMode		# Select the running mode of the code
 │   ├───train                 # train model
 │   ├───eval_ED               # evaluate model in test sets
