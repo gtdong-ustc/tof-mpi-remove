@@ -1,6 +1,6 @@
 # The program that remove the multi-path inference in ToF depth
 
-This repository provides a deformable kernel denoise methods for time-of-flight (ToF) artifacts removal.
+This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal.
 
 ## How to use the code
 
