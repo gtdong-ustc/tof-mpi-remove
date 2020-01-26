@@ -1,4 +1,4 @@
-# The program that remove the multi-path inference in ToF depth
+# The program that remove the noise in ToF depth image
 
 This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal.
 
