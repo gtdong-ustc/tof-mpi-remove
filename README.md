@@ -4,12 +4,14 @@ This repository provides a deformable kernel denoise methods for time-of-flight 
 
 ## How to use the code
 
-environment
+code running environment
 ```
 tensorflow-gpu==1.12.0 
-Pillow
-scikit-image
-six
+```
+
+dataset download
+```
+https://drive.google.com/open?id=1y_-uVsecl2Ty-sH8xw1fFAnxYHBhf_tX
 ```
 
 the project starts with the 'start.py'. Through this file, you can select different models, data sets and loss functions for training, and you can switch between train, eval and output modes by adjusting parameters
