@@ -248,7 +248,6 @@ def depth_output_subnet(inputs, flg, regular, kernel_size):  ## x (B,H,W,1), fea
 
     biases = current_input[:, :, :, 0::0 - kernel_size ** 2]
     weights = current_input[:, :, :, 0 - kernel_size ** 2::]
-    ## run y = w(x + b)
 
     return biases, weights
 
@@ -266,6 +265,5 @@ def dear_kpn_no_rgb(x, flg, regular, batch_size, deformable_range):
     column = im2col(inputs, kernel_size=kernel_size)
     current_output = tf.reduce_sum(column * weights, axis=-1, keep_dims=True)
     depth_output = tf.identity(current_output, name='depth_output')
-    # depth_output = tf.identity(inputs, name='depth_output')
 
     return depth_output
