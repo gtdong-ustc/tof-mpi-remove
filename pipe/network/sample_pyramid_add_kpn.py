@@ -643,8 +643,7 @@ def sample_pyramid_add_kpn(x, flg, regular, batch_size, deformable_range):
     depth = tf.expand_dims(x[:, :, :, 0], axis=-1)
     amplitude = tf.expand_dims(x[:, :, :, 1], axis=-1)
     depth_and_amplitude = tf.concat([depth, amplitude], axis=-1)
-    # depth_and_amplitude = x[:, :, :, 0:2]
-    # rgb = x[:, :, :, 2:5]
+
 
     features = feature_extractor_subnet(depth_and_amplitude, flg, regular)
 
