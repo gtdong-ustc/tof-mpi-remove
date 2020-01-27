@@ -242,9 +242,6 @@ def sobel_gradient_loss(x, y, mask=None):
         mask = tf.ones_like(x, dtype=tf.float32)
     g1 = sobel_edges(x)
     g2 = sobel_edges(y)
-    print('***************************')
-    print(g1)
-    print(mask[:,1:-1,1:-1,:])
     return tf.reduce_sum(mask *tf.reduce_sum(tf.abs(g1 - g2), axis=-1, keepdims=True)) / tf.reduce_sum(mask)
 
 
