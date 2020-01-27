@@ -421,10 +421,6 @@ def unet_subnet(x, flg, regular):
             name=name
         )
         upsamp.append(current_input)
-        # current_input = tf.layers.batch_normalization(
-        #     inputs=current_input,
-        #     training=train_ae,
-        #     name=pref + "upsamp_BN_" + str(i))
         # skip connection
         if skips[i] == False and skips[i - 1] == True:
             current_input = tf.concat([current_input, pool[i + 1]], axis=-1)
@@ -500,10 +496,6 @@ def depth_output_subnet(inputs, flg, regular, kernel_size):  ## x (B,H,W,1), fea
             )
         )
         current_input = mix[-1]
-
-    # biases = current_input[:, :, :, 0::0 - kernel_size ** 2]
-    # weights = current_input[:, :, :, 0 - kernel_size ** 2::]
-    ## run y = w(x + b)
 
     return current_input
 
@@ -664,8 +656,6 @@ def sample_pyramid_add_kpn_NoFusion(x, flg, regular, batch_size, deformable_rang
                                                                align_corners=True)
         depth_residual_input.append(current_depth_residual_input)
 
-    # depth_coarse_residual_input = tf.concat(depth_residual_input, axis=-1)
-    # final_depth_residual_output = residual_output_subnet(depth_coarse_residual_input, flg, regular, subnet_num=0)
     final_depth_residual_output = depth_residual_input[-1]
     current_final_depth_output = depth + final_depth_residual_output
     final_depth_output = dear_kpn(current_final_depth_output, flg, regular)
