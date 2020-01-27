@@ -78,7 +78,7 @@ def preprocessing(features, labels):
     msk = kinect_mask_tensor()
     meas = features['full']
     meas = [meas[:, :, i] * msk / tof_cam.cam['map_max'] for i in
-            range(meas.shape[-1])]  ##tof_cam.cam['map_max'] == 3500
+            range(meas.shape[-1])]
     meas = tf.stack(meas, -1)
     meas_p = meas[20:-20, :, :]
 
@@ -112,28 +112,12 @@ def preprocessing_tof_FT3(features, labels):
     :return:
     """
 
-    # h_random = tf.random_uniform(shape=[1], minval=-48, maxval=48, dtype=tf.int32)[0]
-    # w_random = tf.random_uniform(shape=[1], minval=-64, maxval=64, dtype=tf.int32)[0]
-
-    # rgb_p = features['rgb'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # noisy_p = features['noisy'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # intensity_p = features['intensity'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # gt_p = labels['gt'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-
-    # rgb_p = features['rgb'][48 :-48, 64 :-64, :]
-    # noisy_p = features['noisy'][48 :-48, 64 :-64, :]
-    # intensity_p = features['intensity'][48:-48, 64:-64, :]
-    # gt_p = labels['gt'][48:-48, 64:-64, :]
-
     rgb_p = features['rgb']
     noisy_p = features['noisy']
     intensity_p = features['intensity']
     gt_p = labels['gt']
-    # h_max = gt.shape.as_list()[0]
-    # w_max = gt.shape.as_list()[1]
     #rgb
     rgb_list = []
-    # rgb = rgb / 255.0
     for i in range(3):
         rgb_list.append(rgb_p[:,:,i] - tf.reduce_mean(rgb_p[:,:,i]))
 
@@ -141,15 +125,12 @@ def preprocessing_tof_FT3(features, labels):
     rgb_p = rgb_p[48:-48,64:-64,:]
     features['rgb'] = rgb_p
     # #intensity
-    # intensity_p = intensity / 255.0
     intensity_p = intensity_p[48:-48,64:-64,:]
     features['intensity'] = intensity_p
     # #noisy
-    # noisy_p = noisy * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
     noisy_p = noisy_p[48:-48,64:-64,:]
     features['noisy'] = noisy_p
     # #gt
-    # gt_p = gt * 2.0 * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
     gt_p = gt_p[48:-48,64:-64,:]
     gt_p = gt_p * 2.0
     labels['gt'] = gt_p
@@ -183,48 +164,20 @@ def preprocessing_TB(features, labels):
     :param labels:
     :return:
     """
-
-    # h_random = tf.random_uniform(shape=[1], minval=-48, maxval=48, dtype=tf.int32)[0]
-    # w_random = tf.random_uniform(shape=[1], minval=-64, maxval=64, dtype=tf.int32)[0]
-
-    # rgb_p = features['rgb'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # noisy_p = features['noisy'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # intensity_p = features['intensity'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-    # gt_p = labels['gt'][48 + h_random:-48+h_random, 64+w_random:-64+w_random,:]
-
-    # rgb_p = features['rgb'][48 :-48, 64 :-64, :]
-    # noisy_p = features['noisy'][48 :-48, 64 :-64, :]
-    # intensity_p = features['intensity'][48:-48, 64:-64, :]
-    # gt_p = labels['gt'][48:-48, 64:-64, :]
-
     rgb_p = features['rgb']
     noisy_p = features['noisy']
     intensity_p = features['intensity']
     gt_p = labels['gt']
-    # h_max = gt.shape.as_list()[0]
-    # w_max = gt.shape.as_list()[1]
-    #rgb
-    # rgb_list = []
-    # # rgb = rgb / 255.0
-    # for i in range(3):
-    #     rgb_list.append(rgb_p[:,:,i] - tf.reduce_mean(rgb_p[:,:,i]))
-    #
-    # rgb_p = tf.stack(rgb_list, axis=-1)
     rgb_p = rgb_p[7:-8,:,:]
     features['rgb'] = rgb_p
     # #intensity
     intensity_p = intensity_p[7:-8,:,:]
-    # intensity_p = intensity_p / 250.0
     features['intensity'] = intensity_p
     # #noisy
-    # noisy_p = noisy * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
     noisy_p = noisy_p[7:-8,:,:]
-    # noisy_p = noisy_p / 2.0
     features['noisy'] = noisy_p
-    # #gt
-    # gt_p = gt * 2.0 * plane_correction(fov=63.5, h_max=h_max, w_max=w_max)/ 4095.0
+    #gt
     gt_p = gt_p[7:-8,:,:]
-    # gt_p = gt_p / 2.0
     labels['gt'] = gt_p
     return features, labels
 
@@ -279,10 +232,6 @@ def imgs_input_fn(filenames, height, width, shuffle=False, repeat_count=1, batch
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
     batch_dataset = batch_dataset.prefetch(2)
-    # dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
-    # batch_dataset = dataset.batch(batch_size)  # Batch Size
-    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
     return batch_dataset
 
@@ -338,10 +287,6 @@ def imgs_input_fn_deeptof(filenames, height, width, shuffle=False, repeat_count=
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
     batch_dataset = batch_dataset.prefetch(2)
-    # dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
-    # batch_dataset = dataset.batch(batch_size)  # Batch Size
-    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
     return batch_dataset
 
@@ -404,8 +349,6 @@ def imgs_input_fn_FT3(filenames, height, width, shuffle=False, repeat_count=1, b
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
     batch_dataset = batch_dataset.prefetch(2)
-    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
     return batch_dataset
 
@@ -468,8 +411,6 @@ def imgs_input_fn_TB(filenames, height, width, shuffle=False, repeat_count=1, ba
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
     batch_dataset = batch_dataset.prefetch(2)
-    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
     return batch_dataset
 
@@ -526,8 +467,6 @@ def imgs_input_fn_FLAT(filenames, height, width, shuffle=False, repeat_count=1, 
     dataset = dataset.repeat(repeat_count)  # Repeat the dataset this time
     batch_dataset = dataset.batch(batch_size)  # Batch Size
     batch_dataset = batch_dataset.prefetch(2)
-    # iterator = batch_dataset.make_one_shot_iterator()  # Make an iterator
-    # batch_features, batch_labels = iterator.get_next()  # Tensors to get next batch of image and their labels
 
     return batch_dataset
 
@@ -678,8 +617,6 @@ def im2col(input, kernel_size = 3):
     h_pos = tf.tile(h_pos, multiples=[batch_size, 1, 1, 1])
     w_pos = tf.tile(w_pos, multiples=[batch_size, 1, 1, 1])
 
-    # tensor_batch = list(range(batch_size))
-    # tensor_batch = tf.convert_to_tensor(tensor_batch)
     tensor_batch = tf.range(batch_size)
     tensor_batch = tf.reshape(tensor_batch, [batch_size, 1, 1, 1])
     tensor_batch = tf.tile(tensor_batch, multiples=[1, h_max, w_max, kernel_size ** 2])
@@ -698,24 +635,6 @@ def im2col(input, kernel_size = 3):
 
     output = tf.reshape(im, [batch_size, h_max, w_max, kernel_size ** 2])
     return output
-"""
-###
-This function has been temporarily deleted
-###
-def dof_computer(dist, samples, batch_size, z_multiplier, coords_h_pos, coords_w_pos):
-    N = samples.shape.as_list()[-1]
-    XX_s, YY_s, ZZ_s = map2mesh_samples(samples, tof_cam.cam, batch_size, z_multiplier, yy_coords=coords_h_pos, xx_coords=coords_w_pos)
-    XX, YY, ZZ = map2mesh(dist, tof_cam.cam, batch_size, z_multiplier)
-    XX = tf.tile(XX, multiples=[1,1,1,N])
-    YY = tf.tile(YY, multiples=[1, 1, 1, N])
-    ZZ = tf.tile(ZZ, multiples=[1, 1, 1, N])
-    dist = tf.tile(dist, multiples=[1, 1, 1, N])
-    dof_samp_cur = tf.sqrt((XX-XX_s)**2 + (YY-YY_s)**2 + (ZZ-ZZ_s)**2)
-    dof_samples = dof_samp_cur + samples + dist
-    return dof_samples
-"""
-
-
 
 ALL_INPUT_FN = {
     'FLAT':imgs_input_fn_FLAT,
