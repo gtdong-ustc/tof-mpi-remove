@@ -9,7 +9,7 @@ code running environment
 tensorflow-gpu==1.12.0 
 ```
 
-dataset download
+The google drive web includes tfrecords datasets, tfrecords convert scripts and pretrained models. But the training sets of tof_TF3 dataset is too large, so we just provide the convert script.
 ```
 https://drive.google.com/open?id=1y_-uVsecl2Ty-sH8xw1fFAnxYHBhf_tX
 ```
