@@ -203,7 +203,6 @@ def tof_net_func(features, labels, mode, params):
         depth_msk = tf.cast(depth_msk, tf.float32)
 
     ## get the msk needed in compute loss and metrics
-    # loss_mask_dict['depth_msk'] = depth_msk
     loss_msk = loss_mask_dict[params['loss_mask']]
 
     # compute loss (for TRAIN and EVAL modes)
@@ -222,27 +221,10 @@ def tof_net_func(features, labels, mode, params):
             loss = 0.9 * loss_raw + 0.1 * loss_depth
             loss = tf.identity(loss, name="loss")
         else:
-            # loss_list = []
-            # for i in range(len(depth_residual_scale)):
-            #     loss_list.append(depth_residual_scale[i] * get_supervised_loss(params['loss_fn'], depth_outs[i], gt, loss_msk))
-            # loss = tf.reduce_sum(loss_list)
-            # depth_outs = depth_outs[-1]
             if params['add_gradient'] == 'sobel_gradient':
                 loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
                 loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
                 loss = loss_1 + 10.0 * loss_2
-            elif params['add_gradient'] == 'sobel_gradient_x3':
-                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
-                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
-                loss = loss_1 + 3.0 * loss_2
-            elif params['add_gradient'] == 'sobel_gradient_x6':
-                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
-                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
-                loss = loss_1 + 6.0 * loss_2
-            elif params['add_gradient'] == 'sobel_gradient_x13':
-                loss_1 = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
-                loss_2 = get_supervised_loss('sobel_gradient', depth_outs, gt, loss_msk)
-                loss = loss_1 + 13.0 * loss_2
             else:
                 loss = get_supervised_loss(params['loss_fn'], depth_outs, gt, loss_msk)
         # configure the training op (for TRAIN mode)
@@ -255,7 +237,6 @@ def tof_net_func(features, labels, mode, params):
             with tf.control_dependencies(update_ops):
                 train_op = optimizer.minimize(loss, global_step=global_step)
         if mode == tf.estimator.ModeKeys.EVAL:
-            depth_residual_every_scale_negative = []
             if loss_msk == None:
                 amplitude_kinect_map = tf.identity(amplitude_kinect, 'amplitude_kinect')
                 depth_gt_map = tf.identity(gt, 'depth_gt')
@@ -277,7 +258,6 @@ def tof_net_func(features, labels, mode, params):
                 depth_gt_map = tf.identity(gt, 'depth_gt')
                 amplitude_kinect_map = tf.identity(amplitude_kinect, 'amplitude_kinect')
                 depth_outs_map = tf.identity(depth_outs * loss_msk, 'depth_outs')
-                # depth_kinect_map = tf.identity(depth_kinect * loss_msk, 'depth_kinect')
                 depth_kinect_map = tf.identity(depth_kinect, 'depth_kinect')
                 depth_outs_error = tf.identity((gt * loss_msk - depth_outs * loss_msk), 'depth_outs_error')
                 depth_kinect_error = tf.identity((gt * loss_msk - depth_kinect * loss_msk), 'depth_kinect_error')
@@ -292,68 +272,6 @@ def tof_net_func(features, labels, mode, params):
                 depth_outs_error_positive = depth_outs_error * tf.cast(depth_outs_error >= 0, dtype=tf.float32)
                 depth_outs_error_positive = depth_outs_error_positive / tensor_max
 
-                if model_name_list[0] == 'sample':
-
-                    for i in range(len(depth_residual_every_scale)):
-                        # tensor_max = tf.reduce_max(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
-                        # tensor_min = tf.reduce_min(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
-                        # depth_residual_every_scale[i] = depth_residual_every_scale[i] - tensor_min
-                        depth_residual_every_scale_negative.append(depth_residual_every_scale[i] * tf.cast(depth_residual_every_scale[i] < 0, dtype=tf.float32))
-                        tensor_min = tf.reduce_min(depth_residual_every_scale_negative[i], axis=[1, 2, 3], keepdims=True)
-                        depth_residual_every_scale_negative[i] = depth_residual_every_scale_negative[i] / tensor_min
-                        # depth_residual_every_scale[i] = depth_residual_every_scale[i] * tf.cast(depth_residual_every_scale[i] >= 0, dtype=tf.float32)
-
-                        # full error map
-                        depth_residual_every_scale[i] = depth_residual_every_scale[i]
-
-                        tensor_max = tf.reduce_max(depth_residual_every_scale[i], axis=[1,2,3], keepdims=True)
-                        depth_residual_every_scale[i] = depth_residual_every_scale[i] / tensor_max
-
-                    depth_residual_in_scale_1 = tf.identity(tf.abs(depth_residual_every_scale[-1] * loss_msk),
-                                                            'depth_residual_in_scale_1')
-                    depth_residual_in_scale_1_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-1] * loss_msk),
-                                                            'depth_residual_in_scale_1_negative')
-                    depth_residual_in_scale_2 = tf.identity(tf.abs(depth_residual_every_scale[-2] * loss_msk),
-                                                            'depth_residual_in_scale_2')
-                    depth_residual_in_scale_2_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-2] * loss_msk),
-                                                            'depth_residual_in_scale_2_negative')
-                    depth_residual_in_scale_3 = tf.identity(tf.abs(depth_residual_every_scale[-3] * loss_msk),
-                                                            'depth_residual_in_scale_3')
-                    depth_residual_in_scale_3_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-3] * loss_msk),
-                                                            'depth_residual_in_scale_3_negative')
-                    depth_residual_in_scale_4 = tf.identity(tf.abs(depth_residual_every_scale[-4] * loss_msk),
-                                                            'depth_residual_in_scale_4')
-                    depth_residual_in_scale_4_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-4] * loss_msk),
-                                                            'depth_residual_in_scale_4_negative')
-                    depth_residual_in_scale_5 = tf.identity(tf.abs(depth_residual_every_scale[-5] * loss_msk),
-                                                           'depth_residual_in_scale_5')
-                    depth_residual_in_scale_5_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-5] * loss_msk),
-                                                            'depth_residual_in_scale_5_negative')
-                if model_name_list[-1] == 'scale' and model_name_list[-2] == 'substract':
-                    print('no scale 6')
-                elif model_name_list[-1] == 'scale' or params['model_name'] == 'sample_pyramid_add_kpn':
-                    depth_residual_in_scale_6 = tf.identity(tf.abs(depth_residual_every_scale[-6] * loss_msk),
-                                                            'depth_residual_in_scale_6')
-                    depth_residual_in_scale_6_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-6] * loss_msk),
-                                                            'depth_residual_in_scale_6_negative')
-                    if params['model_name'] == 'sample_pyramid_add_kpn':
-                        depth_residual_in_scale_7 = tf.identity(tf.abs(depth_residual_every_scale[-7] * loss_msk),
-                                                                'depth_residual_in_scale_7')
-                        depth_residual_in_scale_7_negative = tf.identity(tf.abs(depth_residual_every_scale_negative[-7] * loss_msk),
-                                                                'depth_residual_in_scale_7_negative')
-                        depth_residual_in_scale_8 = tf.identity(tf.abs(depth_residual_every_scale[-8] * loss_msk),
-                                                                'depth_residual_in_scale_8')
-                        depth_residual_in_scale_8_negative = tf.identity(
-                            tf.abs(depth_residual_every_scale_negative[-8] * loss_msk),
-                            'depth_residual_in_scale_8_negative')
-
-            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=4.0, cmap='jet'))
-            # tf.summary.image('amplitude_kinect_map',amplitude_kinect_map)
-            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=4.0, cmap='jet'))
-            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=4.0, cmap='jet'))
-            # tf.summary.image('depth_outs_error',colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.2, cmap='jet'))
-            # # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), cmap='jet'))
-            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.6, cmap='jet'))
 
             tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
@@ -361,48 +279,10 @@ def tof_net_func(features, labels, mode, params):
             tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
             tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
-
-            # tf.summary.image('depth_gt', depth_gt_map)
-            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
-            # tf.summary.image('depth_outs', depth_outs_map)
-            # tf.summary.image('depth_kinect',depth_kinect_map)
-            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
-            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
-            #
-            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.43, vmax=0.8, cmap='jet'))
-            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
-            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.43, vmax=0.8, cmap='jet'))
-            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, cmap='jet'))
-            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
-            # tf.summary.image('depth_kinect_error',
-            #                  colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.1, cmap='jet'))
-
             tf.summary.image('depth_outs_error_positive', colorize_img(depth_outs_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('depth_kinect_error_positive', colorize_img(depth_kinect_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('depth_outs_error_negative',colorize_img(depth_outs_error_negative, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('depth_kinect_error_negative',colorize_img(depth_kinect_error_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-            if model_name_list[0] == 'sample':
-                tf.summary.image('depth_residual_in_scale_1', colorize_img(depth_residual_in_scale_1, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_2', colorize_img(depth_residual_in_scale_2, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_3', colorize_img(depth_residual_in_scale_3, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_4', colorize_img(depth_residual_in_scale_4, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_5', colorize_img(depth_residual_in_scale_5, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_1_negative',colorize_img(depth_residual_in_scale_1_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_2_negative',colorize_img(depth_residual_in_scale_2_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_3_negative',colorize_img(depth_residual_in_scale_3_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_4_negative',colorize_img(depth_residual_in_scale_4_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_5_negative',colorize_img(depth_residual_in_scale_5_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-            if model_name_list[-1] == 'scale' and model_name_list[-2] == 'substract':
-                print('no scale 6')
-            elif model_name_list[0] == 'pyramid' or model_name_list[-1] == 'scale'or params['model_name'] == 'sample_pyramid_add_kpn':
-                tf.summary.image('depth_residual_in_scale_6', colorize_img(depth_residual_in_scale_6, vmin=0.0, vmax=1.0, cmap='jet'))
-                tf.summary.image('depth_residual_in_scale_6_negative',colorize_img(depth_residual_in_scale_6_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                if params['model_name'] == 'sample_pyramid_add_kpn':
-                    tf.summary.image('depth_residual_in_scale_7',colorize_img(depth_residual_in_scale_7, vmin=0.0, vmax=1.0, cmap='jet'))
-                    tf.summary.image('depth_residual_in_scale_7_negative',colorize_img(depth_residual_in_scale_7_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-                    tf.summary.image('depth_residual_in_scale_8', colorize_img(depth_residual_in_scale_8, vmin=0.0, vmax=1.0, cmap='jet'))
-                    tf.summary.image('depth_residual_in_scale_8_negative',colorize_img(depth_residual_in_scale_8_negative, vmin=0.0, vmax=1.0, cmap='jet'))
-
             ## get metrics
             if params['training_set'] == 'tof_FT3':
                 depth_outs = depth_outs * 409.5
