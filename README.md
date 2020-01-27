@@ -24,13 +24,13 @@ Arg
 │   ├───sample_pyramid_add_kpn_NoRefine        # WORefine
 │   ├───sample_pyramid_add_kpn_NoFusion        # WOFusion
 │   ├───sample_pyramid_add_kpn_NoRefineFusion  # WORefFus
-│   ├───sample_pyramid_add_kpn_FiveLevel       # FiveLevle
+│   ├───sample_pyramid_add_kpn_FiveLevel       # FiveLevel
 │   ├───sample_pyramid_add_kpn_FourLevel       # FourLevel
 │   ├───dear_kpn_no_rgb                        # ToF-KPN
 │   └───dear_kpn_no_rgb_DeepToF                # DeepToF
 ├───trainingSet		# Select the dataset required during training
-│   ├───tof_FT3       # ToF-FlyingThings3D dataset (424, 512)
-│   ├───FLAT          # FLAT dataset (480, 640)
+│   ├───tof_FT3       # ToF-FlyingThings3D dataset (480, 640)
+│   ├───FLAT          # FLAT dataset (424, 512)
 │   └───TB            # True box dataset (239, 320)
 ├───flagMode		# Select the running mode of the code
 │   ├───train                 # train model
