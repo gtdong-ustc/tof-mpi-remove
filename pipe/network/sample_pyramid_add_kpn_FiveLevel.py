@@ -607,11 +607,6 @@ def depth_output_subnet(inputs, flg, regular, kernel_size):  ## x (B,H,W,1), fea
             )
         )
         current_input = mix[-1]
-
-    # biases = current_input[:, :, :, 0::0 - kernel_size ** 2]
-    # weights = current_input[:, :, :, 0 - kernel_size ** 2::]
-    ## run y = w(x + b)
-
     return current_input
 
 def dear_kpn(x, flg, regular):
