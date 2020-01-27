@@ -100,27 +100,10 @@ def get_metrics_mae(depth, ori_depth, gt, msk):
         error_tensor = tf.reshape(error_array, [-1])
         error_tensor = tf.contrib.framework.sort(error_tensor, direction='ASCENDING')
 
-        # max_value = tf.reduce_max(error_tensor)
-        # min_value = tf.reduce_min(error_tensor)
         min_error_value = tf.gather(error_tensor, indices=msk_sum_diff)
         percent_25_error_value = tf.gather(error_tensor, indices=msk_sum_diff + percent_25)
         percent_50_error_value = tf.gather(error_tensor, indices=msk_sum_diff + percent_50)
         percent_75_error_value = tf.gather(error_tensor, indices=msk_sum_diff + percent_75)
-        # min_error_value = min_value
-        # percent_25_error_value = min_value + 0.25 * (max_value-min_value)
-        # percent_50_error_value = min_value + 0.5 * (max_value-min_value)
-        # percent_75_error_value = min_value + 0.75 * (max_value-min_value)
-
-        # min_error_array = min_error_value * msk_one
-        # percent_25_error_array = percent_25_error_value * msk_one
-        # percent_50_error_array = percent_50_error_value * msk_one
-        # percent_75_error_array = percent_75_error_value * msk_one
-        # msk_percent_25 = tf.cast(tf.greater(error_array, min_error_array),dtype=tf.float32) * \
-        #                  tf.cast(tf.greater(percent_25_error_array, error_array),dtype=tf.float32)
-        # msk_percent_50 = tf.cast(tf.greater(error_array, percent_25_error_array),dtype=tf.float32) * \
-        #                  tf.cast(tf.greater(percent_50_error_array, error_array),dtype=tf.float32)
-        # msk_percent_75 = tf.cast(tf.greater(error_array, percent_50_error_array),dtype=tf.float32) * \
-        #                  tf.cast(tf.greater(percent_75_error_array, error_array),dtype=tf.float32)
 
         msk_percent_25 = tf.cast(error_array > min_error_value, dtype=tf.float32) * \
                          tf.cast(error_array < percent_25_error_value, dtype=tf.float32)
@@ -128,25 +111,6 @@ def get_metrics_mae(depth, ori_depth, gt, msk):
                          tf.cast(error_array < percent_50_error_value, dtype=tf.float32)
         msk_percent_75 = tf.cast(error_array > percent_50_error_value, dtype=tf.float32) * \
                          tf.cast(error_array < percent_75_error_value, dtype=tf.float32)
-
-        # msk_percent_25 = tf.cast(error_array > percent_25_error_value, dtype=tf.float32)
-        # msk_percent_50 = tf.cast(error_array > percent_50_error_value, dtype=tf.float32)
-        # msk_percent_75 = tf.cast(error_array > percent_75_error_value, dtype=tf.float32)
-
-        # one = tf.ones_like(error_array, dtype=tf.float32)
-        # zero = tf.zeros_like(error_array, dtype=tf.float32)
-        # msk_percent_25 = tf.where(error_array < percent_25_error_value, x =one, y=zero)
-        # msk_percent_50 = tf.where(error_array < percent_50_error_value, x=one, y=zero)
-        # msk_percent_75 = tf.where(error_array < percent_75_error_value, x=one, y=zero)
-
-
-        # msk_one_sum = tf.cast(msk_one_sum, dtype=tf.float32)
-        # msk_coeff_percent_25 = msk_one_sum / tf.reduce_sum(msk_percent_25)
-        # msk_coeff_percent_50 = msk_one_sum / tf.reduce_sum(msk_percent_50)
-        # msk_coeff_percent_75 = msk_one_sum / tf.reduce_sum(msk_percent_75)
-        # msk_coeff_percent_25 = msk_one_sum / msk_one_sum
-        # msk_coeff_percent_50 = msk_one_sum / msk_one_sum
-        # msk_coeff_percent_75 = msk_one_sum / msk_one_sum
 
         msk_coeff_percent_25 = 4 * msk_coeff
         msk_coeff_percent_50 = 4 * msk_coeff
