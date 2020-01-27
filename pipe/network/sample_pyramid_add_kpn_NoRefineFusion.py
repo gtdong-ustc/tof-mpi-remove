@@ -664,12 +664,9 @@ def sample_pyramid_add_kpn_NoRefineFusion(x, flg, regular, batch_size, deformabl
                                                                align_corners=True)
         depth_residual_input.append(current_depth_residual_input)
 
-    # depth_coarse_residual_input = tf.concat(depth_residual_input, axis=-1)
-    # final_depth_residual_output = residual_output_subnet(depth_coarse_residual_input, flg, regular, subnet_num=0)
     final_depth_residual_output = depth_residual_input[-1]
     current_final_depth_output = depth + final_depth_residual_output
     final_depth_output = current_final_depth_output
-    # final_depth_output = dear_kpn(current_final_depth_output, flg, regular)
     depth_residual_input.append(final_depth_residual_output)
     depth_residual_input.append(final_depth_output - current_final_depth_output)
     return final_depth_output, depth_residual_input
