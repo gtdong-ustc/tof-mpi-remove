@@ -355,12 +355,12 @@ def tof_net_func(features, labels, mode, params):
             # # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), cmap='jet'))
             # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.6, cmap='jet'))
 
-            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
-            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
-            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
-            # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
+            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
+            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, vmin=0.0, vmax=1.0, cmap='jet'))
+            tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
 
             # tf.summary.image('depth_gt', depth_gt_map)
             # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
@@ -368,14 +368,14 @@ def tof_net_func(features, labels, mode, params):
             # tf.summary.image('depth_kinect',depth_kinect_map)
             # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
             # tf.summary.image('depth_kinect_error',colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.4, cmap='jet'))
-
-            tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.43, vmax=0.8, cmap='jet'))
-            tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
-            tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.43, vmax=0.8, cmap='jet'))
-            tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, cmap='jet'))
-            tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
-            tf.summary.image('depth_kinect_error',
-                             colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            #
+            # tf.summary.image('depth_gt', colorize_img(depth_gt_map, vmin=0.43, vmax=0.8, cmap='jet'))
+            # tf.summary.image('amplitude_kinect_map', amplitude_kinect_map)
+            # tf.summary.image('depth_outs', colorize_img(depth_outs_map, vmin=0.43, vmax=0.8, cmap='jet'))
+            # tf.summary.image('depth_kinect', colorize_img(depth_kinect_map, cmap='jet'))
+            # tf.summary.image('depth_outs_error', colorize_img(tf.abs(depth_outs_error), vmin=0.0, vmax=0.1, cmap='jet'))
+            # tf.summary.image('depth_kinect_error',
+            #                  colorize_img(tf.abs(depth_kinect_error), vmin=0.0, vmax=0.1, cmap='jet'))
 
             tf.summary.image('depth_outs_error_positive', colorize_img(depth_outs_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
             tf.summary.image('depth_kinect_error_positive', colorize_img(depth_kinect_error_positive, vmin=0.0, vmax=1.0, cmap='jet'))
