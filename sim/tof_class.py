@@ -1739,7 +1739,7 @@ class kinect_real_tf:
 		dist_y_shape = tf.convert_to_tensor(dist_y_shape, dtype=tf.float32)
 
 		xx = (xx - xc)/dist_x_shape*dimx/((dimx-1)/2) * coeff
-		yy = (yy - yc)/dist_y_shape*dimy/((dimy-1)/2) * coeff
+		yy = (yy - yc)/dist_y_shape*dimy/((dimx-1)/2) * coeff
 		z_multiplier = 1/tf.sqrt(xx**2+yy**2+1)
 		z_multiplier = tf.expand_dims(z_multiplier, axis=-1)
 		depth = dist * z_multiplier
