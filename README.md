@@ -1,6 +1,6 @@
 # The program that remove the noise in ToF depth image
 
-This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal.
+This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal. The paper can be downloaded from https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123690035.pdf
 
 ## How to use the code
 
@@ -63,5 +63,7 @@ For example
 ```
 python start.py -b 2 -s 200000 -m sample_pyramid_add_kpn -p size384 -k depth_kinect_with_gt_msk -l 0.0004 -t tof_FT3 -i 480 640 -o mean_l1 --addGradient sobel_gradient -g 4 -e 1200
 ```
+
+
    
 
