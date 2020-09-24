@@ -1,6 +1,7 @@
 # The program that remove the noise in ToF depth image
 
-This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal. The paper can be downloaded from https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123690035.pdf
+This repository provides the source code of SHARP-Net for time-of-flight (ToF) noise removal. 
+The paper can be downloaded from https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123690035.pdf
 
 ## How to use the code
 
